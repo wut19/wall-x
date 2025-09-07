@@ -1,8 +1,40 @@
 # Wall-X
 
-## Overview
+<div align="left">
 
-Wall-X is a multimodal foundation model designed for robotics applications, combining vision, language, and action capabilities. The model architecture is built upon Qwen2.5-3B-VL with specialized adaptations for robotic control tasks.
+<!-- Links -->
+<a href="https://huggingface.co/x-square-robot">
+  <img src="https://img.shields.io/badge/Hugging%20Face-x--square--robot-FFB000?style=for-the-badge&logo=huggingface&logoColor=000" alt="Hugging Face">
+</a>
+<a href="https://x2robot.com/en/research/68bc2cde8497d7f238dde690">
+  <img src="https://img.shields.io/badge/Project-1E90FF?style=for-the-badge&logo=google-chrome&logoColor=fff" alt="Project Page">
+</a>
+
+<!-- Tech stack -->
+<br/>
+<img src="https://img.shields.io/badge/Python-3.10-3776AB?style=flat&logo=python&logoColor=fff" alt="Python 3.10">
+<img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=flat&logo=pytorch&logoColor=fff" alt="PyTorch">
+<img src="https://img.shields.io/badge/FlashAttention-0F9D58?style=flat&logo=nvidia&logoColor=fff" alt="FlashAttention">
+<img src="https://img.shields.io/badge/LeRobot-222?style=flat&logo=huggingface&logoColor=ffd21e" alt="LeRobot">
+<img src="https://img.shields.io/badge/CUDA-12.x-76B900?style=flat&logo=nvidia&logoColor=fff" alt="CUDA">
+<img src="https://img.shields.io/badge/OS-Ubuntu%2022.04-E95420?style=flat&logo=ubuntu&logoColor=fff" alt="Ubuntu 22.04">
+
+</div>
+
+## Building General-Purpose Robots Based on Embodied Foundation Model
+We are building the embodied foundation model to capture and compress the world's most valuable data: the continuous, high-fidelity stream of physical interaction. 
+
+By creating a direct feedback loop between the model's decisions and the body's lived experience, we enable the emergence of a truly generalizable intelligence—one that understands not just how the world works, but how to act effectively within it.
+
+## Repository
+This repository provides the training and inference code that supports our WALL series open-source embodied foundation models. It includes end-to-end pipelines for data preparation (LeRobot), model configuration, flow-matching and FAST action branches, and evaluation utilities for real and simulated robots.
+
+## News
+- We introduce [**WALL-OSS**](https://x2robot.com/en/research/68bc2cde8497d7f238dde690), an end-to-end embodied foundation model that leverages large-scale multimodal pretraining to achieve (1) embodiment-aware vision–language understanding, (2) strong language–action association, and (3) robust manipulation capability.
+
+## Models
+- WALL-OSS-FLOW: https://huggingface.co/x-square-robot/wall-oss-flow
+- WALL-OSS-FAST: https://huggingface.co/x-square-robot/wall-oss-fast
 
 ## Environment Setup
 
