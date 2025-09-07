@@ -99,3 +99,17 @@ To generate an open-loop comparison plot, please follow:
 ```bash
 python ./scripts/draw_openloop_plot.py
 ```
+
+## 📚 Cite Us
+
+If you find WALL-OSS models useful, please cite:
+
+```bibtex
+@misc{walloss_paper_2025,
+  title        = {WALL-OSS: Igniting VLMs toward the Embodied Space},
+  author       = {X Square Robot},
+  year         = {2025},
+  howpublished = {\url{https://x2-robot.feishu.cn/file/FurYbuThcofkOqxrsy7cnzUbndd}},
+  note         = {White paper}
+}
+```
