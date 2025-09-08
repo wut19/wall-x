@@ -38,8 +38,7 @@ gt_traj = torch.zeros((total_frames, action_dim))
 pred_traj = torch.zeros((total_frames, action_dim))
 
 for idx, batch in enumerate(dataloader):
-    gt_traj[idx] = batch['action_chunk'][0, 0,:action_dim]
-    if idx % 32 ==0 and idx + 32 < total_frames:
+    if idx % pred_horizon ==0 and idx + pred_horizon < total_frames:
         batch = batch.to("cuda")
         with torch.no_grad():
             outputs = model(
@@ -50,7 +49,13 @@ for idx, batch in enumerate(dataloader):
                 predict_mode="fast"
             )
         pred_traj[idx : idx + pred_horizon] = outputs['predict_action'].detach().cpu()
-
+        
+        # Denormalize ground truth actions
+        gt_action_chunk = batch['action_chunk'][:, :, :action_dim]
+        dof_mask = batch["dof_mask"].to(gt_action_chunk.dtype)
+        denormalized_gt = model.action_preprocessor.normalizer_action.unnormalize_data(gt_action_chunk, ["x2_normal"], dof_mask)
+        gt_traj[idx : idx + pred_horizon] = denormalized_gt.detach().cpu()
+        
 
 gt_traj_np = gt_traj.numpy()
 pred_traj_np = pred_traj.numpy()
