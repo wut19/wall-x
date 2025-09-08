@@ -109,7 +109,7 @@ If you find WALL-OSS models useful, please cite:
   title        = {WALL-OSS: Igniting VLMs toward the Embodied Space},
   author       = {X Square Robot},
   year         = {2025},
-  howpublished = {\url{https://x2-robot.feishu.cn/file/FurYbuThcofkOqxrsy7cnzUbndd}},
+  howpublished = {\url{https://x2robot.cn-wlcb.ufileos.com/wall_oss.pdf}},
   note         = {White paper}
 }
 ```
