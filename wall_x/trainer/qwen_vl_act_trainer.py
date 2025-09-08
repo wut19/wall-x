@@ -197,6 +197,9 @@ class QwenVlAct_Trainer:
             self.train_loop(epoch)
             self.accelerator.wait_for_everyone()
             
+            if (epoch + 1) % self.config.get("epoch_save_interval", 10) == 0:
+                self.save_checkpoint(epoch)
+            
             # Validation after each epoch
             self.val_loop()
             self.accelerator.wait_for_everyone()
