@@ -6,6 +6,8 @@ log_name: "robotic_training"
 log_project: "vla_training"
 model_type: qwen2_5
 pretrained_qwen_vl_path: "/path/to/qwen_vl_model/"
+# whether to enable fast tokenizer
+use_fast_tokenizer: false
 action_tokenizer_path: "/path/to/fast/"
 save_path: "/path/to/workspace/"
 
