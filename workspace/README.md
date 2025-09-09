@@ -2,28 +2,27 @@
 
 This document explains the key configuration parameters that can be modified for Wall-X training.
 
+## Quick Start Checklist
+1. **Update run.sh**: Set `code_dir` and `config_path` to your actual paths
+2. **Configure GPUs**: Set `CUDA_VISIBLE_DEVICES` for your available GPUs  
+3. **Update config paths**: Replace all `/path/to/` placeholders in `config_qact.yml` with actual paths
+4. **Configure robot**: Set `dof_config` and `agent_pos_config` for your robot
+5. **Set dataset**: Choose appropriate `repo_id` for your dataset
+6. **Adjust batch size**: Set `batch_size_per_gpu` based on GPU memory
+7. **Run training**: Execute `bash ./workspace/lerobot_example/run.sh`
+
 ## Enable FAST tokenizer
 To fine-tune using the FAST tokenizer, please download the repository and update the `action_tokenizer_path`. Make sure to set `use_fast_tokenizer` to `true`:
 ```bash
 git clone https://huggingface.co/physical-intelligence/fast
 ```
 
-## Quick Start Checklist
-1. **Update run.sh**: Set `code_dir` and `config_path` to your actual paths
-2. **Configure GPUs**: Set `CUDA_VISIBLE_DEVICES` for your available GPUs  
-3. **Update config paths**: Replace all `/path/to/` placeholders in config.yml with actual paths
-4. **Configure robot**: Set `dof_config` and `agent_pos_config` for your robot
-5. **Set dataset**: Choose appropriate `repo_id` for your dataset
-6. **Adjust batch size**: Set `batch_size_per_gpu` based on GPU memory
-7. **Run training**: Execute `bash ./workspace/lerobot_example/run.sh`
-
 ## Required Paths (Must Modify)
 ```yaml
-processor_path: "/path/to/model/"                    # Path to model processor
-pretrained_qwen_vl_path: "/path/to/qwen_vl_model/"  # Path to pretrained Qwen VL model
-qwen_vl_act_config_path: "/path/to/config.json"     # Path to model config file
+pretrained_wallx_path: "/path/to/wallx_model/"      # Path to pretrained Qwen VL model
+use_fast_tokenizer: false                           # True: train FAST, False: train Flow
 action_tokenizer_path: "/path/to/fast/"             # Path to action tokenizer
-save_path: "/path/to/workspace/"                     # Path to save training outputs
+save_path: "/path/to/workspace/"                    # Path to save training outputs
 ```
 
 ## Training Parameters (Commonly Modified)
