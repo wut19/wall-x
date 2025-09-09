@@ -76,6 +76,7 @@ Training script path configuration
 - Robot DOF configuration
 - Training hyperparameters
 
+Download the Flow/FAST pretrained model and run:
 ```bash
 bash ./workspace/lerobot_example/run.sh
 ```
