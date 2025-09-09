@@ -97,7 +97,7 @@ class QwenVlAct_Trainer:
                 - qwen_vl_act_config_path (str): Path to model configuration file
                 - learning_rate (float): Base learning rate for training
                 - num_epoch (int): Number of training epochs
-                - pretrained_qwen_vl_path (str): Path to pretrained model
+                - pretrained_wallx_path (str): Path to pretrained model
                 - And other training hyperparameters
             logger: Logger instance for tracking metrics
             accelerator (Accelerator, optional): Hugging Face Accelerate instance for distributed training
@@ -253,6 +253,11 @@ class QwenVlAct_Trainer:
             profiler.__enter__()
 
         try:
+            
+            # Setup timers for First iteration
+            self.timers("interval-time", log_level=0).start(barrier=False)
+            self.timers("data-load", log_level=0).start(barrier=False)
+
             for i, batch in enumerate(self.train_dataloader, self.initial_step):
                 # Move batch to device
                 if isinstance(self.dataset, PreprocessedDataset):
@@ -406,7 +411,7 @@ class QwenVlAct_Trainer:
         """
         # Load pretrained model
         model = Qwen2_5_VLMoEForAction.from_pretrained(
-            self.config["pretrained_qwen_vl_path"], 
+            self.config["pretrained_wallx_path"], 
             **{"use_fast_tokenizer": self.use_fast_tokenizer}
         )
         self.processor = model.processor
