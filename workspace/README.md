@@ -19,10 +19,10 @@ git clone https://huggingface.co/physical-intelligence/fast
 
 ## Required Paths (Must Modify)
 ```yaml
-pretrained_wallx_path: "/path/to/wallx_model/"      # Path to pretrained Qwen VL model
-use_fast_tokenizer: false                           # True: train FAST, False: train Flow
-action_tokenizer_path: "/path/to/fast/"             # Path to action tokenizer
+pretrained_wallx_path: "/path/to/wallx_model/"      # Path to pretrained wallx model
 save_path: "/path/to/workspace/"                    # Path to save training outputs
+use_fast_tokenizer: False                           # True: train FAST, False: train Flow
+action_tokenizer_path: "/path/to/fast/"             # Must set if use_fast_tokenizer is True
 ```
 
 ## Training Parameters (Commonly Modified)
