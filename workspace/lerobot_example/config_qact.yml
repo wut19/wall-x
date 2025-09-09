@@ -5,10 +5,10 @@
 log_name: "robotic_training"
 log_project: "vla_training"
 model_type: qwen2_5
-pretrained_wallx_path: "/path/to/wallx_model/"
-use_fast_tokenizer: false # True: train FAST, False: train Flow
-action_tokenizer_path: "/path/to/fast/"
-save_path: "/path/to/workspace/"
+pretrained_wallx_path: "/path/to/wallx_model/"  # Must set
+save_path: "/path/to/workspace/"                # Must set
+use_fast_tokenizer: False                       # True: train FAST, False: train Flow
+action_tokenizer_path: "/path/to/fast/"         # Must set if use_fast_tokenizer is true
 
 # Torch Profile
 profile: False

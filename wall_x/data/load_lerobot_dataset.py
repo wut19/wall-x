@@ -216,25 +216,15 @@ class DataCollator:
             if self.config.get("padding_side", "left") == "left":
                 self._processor_cache[processor_path].tokenizer.padding_side = "left"
 
-        if action_tokenizer_path not in self._action_tokenizer_cache:
+        if self.use_fast_tokenizer and action_tokenizer_path not in self._action_tokenizer_cache:
             self._action_tokenizer_cache[action_tokenizer_path] = AutoProcessor.from_pretrained(action_tokenizer_path, trust_remote_code=True)
 
         self.processor = self._processor_cache[processor_path]
-        self.val_processor = self._processor_cache[processor_path]
-        self.train_action_tokenizer = self._action_tokenizer_cache[action_tokenizer_path]
-        self.val_action_tokenizer = self._action_tokenizer_cache[action_tokenizer_path]
 
-        new_tokens = ["<|propri|>", "<|action|>"]
-
-        new_tokens += [f"<|action_token_{i}|>" for i in range(self.train_action_tokenizer.vocab_size)]
         if not self.use_fast_tokenizer:
             self.train_action_tokenizer = None
-            self.val_action_tokenizer = None
-
-        # Only add tokens if not already added
-        if "<|propri|>" not in self.processor.tokenizer.get_vocab():
-            num_added_tokens = self.processor.tokenizer.add_tokens(new_tokens)
-            self.val_processor.tokenizer.add_tokens(new_tokens)
+        else:
+            self.train_action_tokenizer = self._action_tokenizer_cache[action_tokenizer_path]
 
         if self.use_fast_tokenizer:
             self.action_mapper = {}
