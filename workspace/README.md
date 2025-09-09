@@ -2,6 +2,12 @@
 
 This document explains the key configuration parameters that can be modified for Wall-X training.
 
+## Enable FAST tokenizer
+To fine-tune using the FAST tokenizer, please download the repository and update the `action_tokenizer_path`. Make sure to set `use_fast_tokenizer` to `true`:
+```bash
+git clone https://huggingface.co/physical-intelligence/fast
+```
+
 ## Quick Start Checklist
 1. **Update run.sh**: Set `code_dir` and `config_path` to your actual paths
 2. **Configure GPUs**: Set `CUDA_VISIBLE_DEVICES` for your available GPUs  
