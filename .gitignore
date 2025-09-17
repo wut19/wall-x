@@ -196,7 +196,6 @@ bin/
 # Media files
 *.jpg
 *.jpeg
-*.png
 *.gif
 *.mp4
 *.avi
@@ -244,6 +243,7 @@ mlruns/
 # Cache directories
 .cache/
 cache/
+.ruff_cache/
 
 # =============================================================================
 # FONTS AND ASSETS (if not part of the project)

@@ -13,8 +13,6 @@
 #include <c10/cuda/CUDAStream.h>
 #include <torch/extension.h>
 
-
-
 // Type traits for CUDA types
 template <typename T>
 struct CudaTypeTraits
@@ -81,7 +79,8 @@ __global__ void multimodal_rope_forward_kernel(
 
     // Process tokens in batches across warps
 
-    for (int seq_base = warp_id + seq_paral_idx * warps_per_block; seq_base < seq_len; seq_base += seq_paral_size * warps_per_block) {
+    for (int seq_base = warp_id + seq_paral_idx * warps_per_block; seq_base < seq_len; seq_base += seq_paral_size * warps_per_block)
+    {
         int seq_idx = seq_base;
         if (seq_idx >= seq_len)
             break;
@@ -119,16 +118,16 @@ __global__ void multimodal_rope_forward_kernel(
 
                 // Load cos/sin values (coalesced access)
                 int cos_sin_idx = section_idx * batch_size * seq_len * head_dim +
-                                    batch_idx * seq_len * head_dim +
-                                    seq_idx * head_dim + cos_sin_d;
+                                  batch_idx * seq_len * head_dim +
+                                  seq_idx * head_dim + cos_sin_d;
 
                 T cos_val = cos[cos_sin_idx];
                 T sin_val = sin[cos_sin_idx];
 
                 // Calculate tensor indices
                 int tensor_idx = batch_idx * total_heads * seq_len * head_dim +
-                                    actual_head_idx * seq_len * head_dim +
-                                    seq_idx * head_dim + dim_idx;
+                                 actual_head_idx * seq_len * head_dim +
+                                 seq_idx * head_dim + dim_idx;
 
                 // Get input value
                 T input_val = is_q_head ? q[tensor_idx] : k[tensor_idx];
@@ -143,7 +142,22 @@ __global__ void multimodal_rope_forward_kernel(
                 T rotate_val = is_q_head ? q[rotate_tensor_idx] : k[rotate_tensor_idx];
                 if (dim_idx < half_dim)
                 {
-                    rotate_val = -rotate_val; // First half: negate second half
+                    if constexpr (std::is_same_v<T, half>)
+                    {
+                        rotate_val = __hneg(rotate_val);
+                    }
+                    else if constexpr (std::is_same_v<T, __nv_bfloat16>)
+                    {
+#if __CUDA_ARCH__ >= 800                                 // BFloat16 support requires Ampere or newer
+                        rotate_val = __hneg(rotate_val); // __hneg works for bfloat16 in newer CUDA
+#else
+                        rotate_val = __float2bfloat16(-__bfloat162float(rotate_val));
+#endif
+                    }
+                    else
+                    {
+                        rotate_val = -rotate_val;
+                    }
                 }
 
                 // Apply RoPE: output = input * cos + rotate_half(input) * sin
@@ -234,13 +248,13 @@ __global__ void multimodal_rope_backward_kernel(
 
                 // Global cos/sin index
                 int cos_sin_idx = section_idx * batch_size * seq_len * head_dim +
-                                    batch_idx * seq_len * head_dim +
-                                    seq_idx * head_dim + cos_sin_d;
+                                  batch_idx * seq_len * head_dim +
+                                  seq_idx * head_dim + cos_sin_d;
 
                 // Tensor index for current position
                 int tensor_idx = batch_idx * total_heads * seq_len * head_dim +
-                                    actual_head_idx * seq_len * head_dim +
-                                    seq_idx * head_dim + dim_idx;
+                                 actual_head_idx * seq_len * head_dim +
+                                 seq_idx * head_dim + dim_idx;
 
                 // Load values
                 T cos_val = cos[cos_sin_idx];
@@ -274,8 +288,8 @@ __global__ void multimodal_rope_backward_kernel(
                 }
 
                 int paired_cos_sin_idx = paired_section_idx * batch_size * seq_len * head_dim +
-                                            batch_idx * seq_len * head_dim +
-                                            seq_idx * head_dim + paired_cos_sin_d;
+                                         batch_idx * seq_len * head_dim +
+                                         seq_idx * head_dim + paired_cos_sin_d;
                 T paired_sin_val = sin[paired_cos_sin_idx];
 
                 // === Compute input gradients (the only thing we need!) ===
@@ -441,7 +455,6 @@ void launch_multimodal_rope_forward(
     torch::Tensor q_out, torch::Tensor k_out,
     std::vector<int> mrope_section_doubled)
 {
-
     cudaStream_t stream = at::cuda::getCurrentCUDAStream().stream();
 
     int batch_size = q.size(0);
@@ -463,10 +476,14 @@ void launch_multimodal_rope_forward(
     {
         data_type = 2;
     }
-    int *d_mrope_section_doubled;
-    cudaMalloc(&d_mrope_section_doubled, 3 * sizeof(int));
-    cudaMemcpyAsync(d_mrope_section_doubled, mrope_section_doubled.data(), 3 * sizeof(int),
-                    cudaMemcpyHostToDevice, stream);
+
+    auto mrope_tensor = torch::from_blob(
+        mrope_section_doubled.data(),
+        {3},
+        torch::TensorOptions().dtype(torch::kInt32)
+    ).to(q.device(), /*non_blocking=*/true);
+
+    int *d_mrope_section_doubled = static_cast<int*>(mrope_tensor.data_ptr());
 
     switch (data_type)
     {
@@ -497,7 +514,6 @@ void launch_multimodal_rope_backward(
     torch::Tensor grad_q, torch::Tensor grad_k,
     std::vector<int> mrope_section_doubled)
 {
-
     cudaStream_t stream = at::cuda::getCurrentCUDAStream().stream();
 
     int batch_size = q.size(0);
@@ -519,10 +535,14 @@ void launch_multimodal_rope_backward(
     {
         data_type = 2;
     }
-    int *d_mrope_section_doubled;
-    cudaMalloc(&d_mrope_section_doubled, 3 * sizeof(int));
-    cudaMemcpyAsync(d_mrope_section_doubled, mrope_section_doubled.data(), 3 * sizeof(int),
-                    cudaMemcpyHostToDevice, stream);
+
+    auto mrope_tensor = torch::from_blob(
+        mrope_section_doubled.data(),
+        {3},
+        torch::TensorOptions().dtype(torch::kInt32)
+    ).to(q.device(), /*non_blocking=*/true);
+
+    int *d_mrope_section_doubled = static_cast<int*>(mrope_tensor.data_ptr());
 
     switch (data_type)
     {
