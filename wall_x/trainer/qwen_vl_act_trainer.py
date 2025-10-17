@@ -15,9 +15,9 @@ from torch.distributed.tensor import distribute_tensor
 from accelerate import Accelerator
 from safetensors.torch import load_file
 from transformers.optimization import get_cosine_with_min_lr_schedule_with_warmup
-
+from transformers import AutoProcessor
 from wall_x.utils.timers import Timers
-from wall_x.model.qwen2_5_based import Qwen2_5_VLMoEForAction
+from wall_x.model.qwen2_5_based import Qwen2_5_VLMoEForAction, Qwen2_5_VLConfig
 from wall_x.data.config import ACTION_DATASET_NAMES, MULTIMODAL_DATASET_NAMES
 from wall_x.data.load_lerobot_dataset import (
     PreprocessedDataset,
@@ -212,7 +212,6 @@ class QwenVlAct_Trainer:
         - Memory cleanup
         """
         self.accelerator.wait_for_everyone()
-
         # Optional validation before training starts
         if self.config.get("resume", None) is not None and self.config["resume"].get(
             "validate_first", False
@@ -225,7 +224,7 @@ class QwenVlAct_Trainer:
             self.train_loop(epoch)
             self.accelerator.wait_for_everyone()
 
-            if (epoch + 1) % self.config.get("epoch_save_interval", 10) == 0:
+            if (epoch + 1) % self.config.get("epoch_save_interval", 1) == 0:
                 self.save_checkpoint(epoch)
 
             # Validation after each epoch
@@ -317,7 +316,6 @@ class QwenVlAct_Trainer:
                     self.timers("forward-compute").stop()
 
                     loss = outputs.loss
-
                     # Check for NaN loss
                     if torch.isnan(loss):
                         print(
@@ -519,12 +517,61 @@ class QwenVlAct_Trainer:
         - Model preparation for distributed training
         """
         # Load pretrained model
-        model = Qwen2_5_VLMoEForAction.from_pretrained(
-            self.config["pretrained_wallx_path"],
-            **{"use_fast_tokenizer": self.use_fast_tokenizer},
-        )
-        self.processor = model.processor
-        model = model.to(torch.bfloat16)
+        model_type = self.config.get("model_type", "qwen2_5")
+        assert model_type in ["wall-oss", "qwen2_5"]
+        if model_type == "wall-oss":
+            model = Qwen2_5_VLMoEForAction.from_pretrained(
+                self.config["pretrained_wallx_path"],
+                **{"use_fast_tokenizer": self.use_fast_tokenizer},
+            )
+            self.processor = model.processor
+            model = model.to(torch.bfloat16)
+        elif model_type == "qwen2_5":
+
+            config = Qwen2_5_VLConfig.from_pretrained(
+                self.config["qwen_vl_act_config_path"]
+            )
+            flow_loss_weight = self.config.get("flow_loss_weight", 1.0)
+            self.processor = AutoProcessor.from_pretrained(
+                self.config["pretrained_wallx_path"], use_fast=True
+            )
+            if self.config.get("use_fast_tokenizer", False):
+                action_tokenizer_path = self.config["action_tokenizer_path"]
+                action_tokenizer = AutoProcessor.from_pretrained(
+                    action_tokenizer_path, trust_remote_code=True
+                )
+                # process for use fast
+                new_tokens = ["<|propri|>", "<|action|>"]
+                new_tokens += [
+                    f"<|action_token_{i}|>" for i in range(action_tokenizer.vocab_size)
+                ]
+                self.processor.tokenizer.add_tokens(new_tokens)
+                begin_idx_token = "<|action_token_0|>"
+                token_id = self.processor.tokenizer.convert_tokens_to_ids(
+                    begin_idx_token
+                )
+                self.processor.tokenizer.init_kwargs["action_token_start_index"] = (
+                    token_id
+                )
+                self.processor.tokenizer.init_kwargs["action_token_vocab_size"] = (
+                    action_tokenizer.vocab_size
+                )
+                self.processor.action_processor = action_tokenizer
+            model = Qwen2_5_VLMoEForAction(
+                config,
+                self.use_fast_tokenizer,
+                self.processor,
+                flow_loss_weight=flow_loss_weight,
+            )
+
+            model = model.to(torch.bfloat16)
+            model = self.load_qwen_pretrain_weight(
+                model, self.config["pretrained_wallx_path"]
+            )
+            model.resize_token_embeddings(len(self.processor.tokenizer))
+            model = model.to(torch.bfloat16)
+        else:
+            raise NotImplementedError(f"Invalid model type: {model_type}")
 
         # Configure optimizer based on training strategy
         if "freeze_vlm" in self.config and self.config["freeze_vlm"]:
@@ -752,7 +799,11 @@ class QwenVlAct_Trainer:
         else:
             ckpt_path = f"{save_path}/{epoch}_{step}"
 
+        # If FSDP SHARDED_STATE_DICT is used, please refer to the wall-x/workspace/README.md
+        # merge checkpoint section to merge the weights into a single safetensors if needed.
         self.accelerator.save_state(ckpt_path)
+
+        self.processor.save_pretrained(os.path.join(ckpt_path, "processor"))
 
         # Save current iteration steps for dataset resuming
         if step != 0:
@@ -773,21 +824,23 @@ class QwenVlAct_Trainer:
         """
         checkpoint_path = self.config["resume"]["ckpt"]
 
-        if self.config.get("FSDP2", False):
-            self._load_fsdp_state_dict_with_distribute_tensor()
-        elif self.config.get("resume", {}).get("load_ckpt_only", False):
-            # Load only model weights
-            ckpt_path = self.config["resume"]["ckpt"] + "/model.safetensors"
-            state_dict = load_file(ckpt_path, device="cpu")
+        if self.config.get("resume", {}).get("load_ckpt_only", False):
+            if self.config.get("FSDP2", False):
+                self._load_fsdp_state_dict_with_distribute_tensor()
 
-            # Add module prefix if needed for distributed training
-            new_state_dict = {}
-            for key in state_dict:
-                if not key.startswith("module."):
-                    new_key = "module." + key
-                new_state_dict[new_key] = state_dict[key]
+            else:
+                # Load only model weights
+                ckpt_path = self.config["resume"]["ckpt"] + "/model.safetensors"
+                state_dict = load_file(ckpt_path, device="cpu")
 
-            self.model.load_state_dict(new_state_dict, strict=False)
+                # Add module prefix if needed for distributed training
+                new_state_dict = {}
+                for key in state_dict:
+                    if not key.startswith("module."):
+                        new_key = "module." + key
+                    new_state_dict[new_key] = state_dict[key]
+
+                self.model.load_state_dict(new_state_dict, strict=False)
         else:
             # Load full checkpoint including optimizer and scheduler states
             self.accelerator.load_state(checkpoint_path)
