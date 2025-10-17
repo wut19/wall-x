@@ -26,6 +26,10 @@ CAMERA_KEY_MAPPINGS = {
         "observation.images.cam_left_wrist": "left_wrist_view",
         "observation.images.cam_right_wrist": "right_wrist_view",
     },
+    "20250926/pickandplace": {
+        "observation.images.top": "face_view",
+        "observation.images.side": "wall_view",
+    },
 }
 
 
@@ -609,7 +613,7 @@ def load_test_dataset(
     # Set seed for reproducibility
     torch.manual_seed(seed)
 
-    dataset_fps = 50
+    dataset_fps = 30
     dataload_config = get_data_configs(config["data"])
 
     delta_timestamps = {
