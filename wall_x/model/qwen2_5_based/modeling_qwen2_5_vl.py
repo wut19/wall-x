@@ -947,7 +947,6 @@ class Qwen2_5_VLFlashAttention2(Qwen2_5_VLAttention):
         ] = None,  # necessary, but kept here for BC
     ):
         bsz, q_len, _ = hidden_states.size()
-
         query_states = self.q_proj(hidden_states)
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)

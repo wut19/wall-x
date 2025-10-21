@@ -569,7 +569,10 @@ class QwenVlAct_Trainer:
                 model, self.config["pretrained_wallx_path"]
             )
             model.resize_token_embeddings(len(self.processor.tokenizer))
-            model = model.to(torch.bfloat16)
+            if self.config.get("FSDP2", False):
+                model = model.to(torch.bfloat16)
+            else:
+                model = model.to_bfloat16_for_selected_params()
         else:
             raise NotImplementedError(f"Invalid model type: {model_type}")
 
@@ -803,7 +806,8 @@ class QwenVlAct_Trainer:
         # merge checkpoint section to merge the weights into a single safetensors if needed.
         self.accelerator.save_state(ckpt_path)
 
-        self.processor.save_pretrained(os.path.join(ckpt_path, "processor"))
+        if self.accelerator.is_main_process:
+            self.processor.save_pretrained(os.path.join(ckpt_path, "processor"))
 
         # Save current iteration steps for dataset resuming
         if step != 0:
