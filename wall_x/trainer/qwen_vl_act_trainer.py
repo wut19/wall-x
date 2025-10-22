@@ -24,6 +24,9 @@ from wall_x.data.load_lerobot_dataset import (
     get_data_configs,
     load_lerobot_data,
 )
+from pprint import pprint
+from wall_x.utils.constant import action_statistic_dof
+from wall_x.data.utils import load_norm_stats
 
 
 def timer(func):
@@ -134,7 +137,52 @@ class QwenVlAct_Trainer:
 
         # Initialize random seeds for reproducibility
         seed_all(self.seed)
+        
+        # process customized robot config
+        if self.config.get("enable_customized_robot_config", False):
+            customized_dof_config = self.config["customized_robot_config"]["customized_dof_config"]
+            customized_agent_pos_config = self.config["customized_robot_config"]["customized_agent_pos_config"]
+            norm_stats_path = self.config["norm_stats_path"]
+            norm_stats = load_norm_stats(norm_stats_path)
+            action_min = norm_stats["action"].min.numpy().tolist()
+            action_delta = norm_stats["action"].delta.numpy().tolist()
+            state_min = norm_stats["state"].min.numpy().tolist()
+            state_delta = norm_stats["state"].delta.numpy().tolist()
 
+            
+            name = self.config["customized_robot_config"]["name"]
+            
+            dof_key = []
+            agent_pos_key = []
+            dof_value = []
+            agent_pos_value = []
+            stats_dict = {}
+            for k, v in customized_dof_config.items():
+                dof_key.append(k)
+                dof_value.append(v)
+            for k, v in customized_agent_pos_config.items():
+                agent_pos_key.append(k)
+                agent_pos_value.append(v)
+                
+            dof_idx = np.array([0] + dof_value).cumsum()
+            for i in range(len(dof_idx) - 1):
+                stats_dict[dof_key[i]] = {
+                    "min": action_min[dof_idx[i]:dof_idx[i+1]],
+                    "delta": action_delta[dof_idx[i]:dof_idx[i+1]],
+                }
+            
+            agent_pos_idx = np.array([0] + agent_pos_value).cumsum()
+            for i in range(len(agent_pos_idx) - 1):
+                stats_dict[agent_pos_key[i]] = {
+                    "min": state_min[agent_pos_idx[i]:agent_pos_idx[i+1]],
+                    "delta": state_delta[agent_pos_idx[i]:agent_pos_idx[i+1]],
+                }
+            
+            action_statistic_dof[name] = stats_dict
+            
+            print("Customized robot config added")
+            pprint(action_statistic_dof)
+            
         # Training state variables
         self.start_epoch = 0
         self.global_step = 0
@@ -535,14 +583,15 @@ class QwenVlAct_Trainer:
             self.processor = AutoProcessor.from_pretrained(
                 self.config["pretrained_wallx_path"], use_fast=True
             )
+            new_tokens = ["<|propri|>", "<|action|>"]
+            self.processor.tokenizer.add_tokens(new_tokens)
             if self.config.get("use_fast_tokenizer", False):
                 action_tokenizer_path = self.config["action_tokenizer_path"]
                 action_tokenizer = AutoProcessor.from_pretrained(
                     action_tokenizer_path, trust_remote_code=True
                 )
                 # process for use fast
-                new_tokens = ["<|propri|>", "<|action|>"]
-                new_tokens += [
+                new_tokens = [
                     f"<|action_token_{i}|>" for i in range(action_tokenizer.vocab_size)
                 ]
                 self.processor.tokenizer.add_tokens(new_tokens)
@@ -803,7 +852,8 @@ class QwenVlAct_Trainer:
         # merge checkpoint section to merge the weights into a single safetensors if needed.
         self.accelerator.save_state(ckpt_path)
 
-        self.processor.save_pretrained(os.path.join(ckpt_path, "processor"))
+        if self.accelerator.is_main_process:
+            self.processor.save_pretrained(os.path.join(ckpt_path, "processor"))
 
         # Save current iteration steps for dataset resuming
         if step != 0:
@@ -845,7 +895,7 @@ class QwenVlAct_Trainer:
             # Load full checkpoint including optimizer and scheduler states
             self.accelerator.load_state(checkpoint_path)
 
-        self.print_rank0(f"Resumed from checkpoint: {checkpoint_path}")
+        self.print_rank0(f"\033[32mResumed from checkpoint: {checkpoint_path}\033[0m")
 
     def _load_fsdp_state_dict_with_distribute_tensor(self):
 

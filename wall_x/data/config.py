@@ -36,6 +36,8 @@ ACTION_DATASET_NAMES = [
     "taco_play",
     "utaustin_mutex",
     "viola",
+    "physical-intelligence/libero",
+    "lerobot/aloha_mobile_cabinet",
 ]
 
 # Supported multimodal datasets

@@ -11,7 +11,8 @@ import random
 from collections import OrderedDict
 from typing import List, Dict, Any, Optional, Union, Tuple
 from transformers import BatchFeature
-
+from dataclasses import dataclass
+import json
 
 CAMERA_NAME_MAPPING = {
     "face_view": "front view",
@@ -609,3 +610,31 @@ def replace_action_token(
         text = [t.replace("<|action_fast|><|im_end|>\n", "") for t in text]
 
     return text
+
+@dataclass
+class NormStats:
+    min: torch.Tensor
+    max: torch.Tensor
+    delta: torch.Tensor
+
+def load_norm_stats(norm_stats_path):
+    with open(norm_stats_path, 'r') as f:
+        norm_stats = json.load(f)
+    q01=torch.tensor(norm_stats["norm_stats"]["actions"]["q01"])
+    q99=torch.tensor(norm_stats["norm_stats"]["actions"]["q99"])
+    delta = q99 - q01
+    action_norm_stats = NormStats(
+        min=q01,
+        max=q99,
+        delta=delta,
+    )
+    q01=torch.tensor(norm_stats["norm_stats"]["state"]["q01"])
+    q99=torch.tensor(norm_stats["norm_stats"]["state"]["q99"])
+    delta = q99 - q01
+    state_norm_stats = NormStats(
+        min=q01,
+        max=q99,
+        delta=delta,
+    )
+    
+    return {"action": action_norm_stats, "state": state_norm_stats}

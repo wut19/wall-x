@@ -17,15 +17,29 @@ from wall_x.data.utils import (
 )
 
 from transformers import AutoProcessor
+from .utils import load_norm_stats, NormStats
 
 T_co = TypeVar("T_co", covariant=True)
 
-CAMERA_KEY_MAPPINGS = {
+
+KEY_MAPPINGS = {
     "lerobot/aloha_mobile_cabinet": {
-        "observation.images.cam_high": "face_view",
-        "observation.images.cam_left_wrist": "left_wrist_view",
-        "observation.images.cam_right_wrist": "right_wrist_view",
+        "camera":{
+            "observation.images.cam_high": "face_view",
+            "observation.images.cam_left_wrist": "left_wrist_view",
+            "observation.images.cam_right_wrist": "right_wrist_view",
+        },
+        "state": "observation.state",
+        "action": "action"
     },
+    "physical-intelligence/libero":{
+        "camera":{
+            "image" : "face_view",
+            "wrist_image" : "left_wrist_view",
+        },
+        "state": "state",
+        "action": "actions"
+    }
 }
 
 
@@ -46,6 +60,8 @@ class PreprocessedDataset(Dataset[T_co]):
         dataset,
         config,
         dataload_config,
+        norm_stats,
+        lerobot_config,
         seed=42,
         rank=0,
         world_size=1,
@@ -72,7 +88,9 @@ class PreprocessedDataset(Dataset[T_co]):
         self.config = config
         self.use_fast_tokenizer = self.config.get("use_fast_tokenizer", False)
         self.dataload_config = dataload_config
-
+        self.norm_stats = norm_stats
+        self.lerobot_config = lerobot_config
+        
         self.data_config = X2RDataProcessingConfig().update(
             train_test_split=self.dataload_config["train_test_split"],
             split_seed=self.dataload_config["split_seed"],
@@ -82,7 +100,9 @@ class PreprocessedDataset(Dataset[T_co]):
             priority_order=self.dataload_config.get("priority_order", None),
         )
 
-        self._cam_key_mapping = CAMERA_KEY_MAPPINGS[self.hf_dataset.meta.repo_id]
+        self._cam_key_mapping = KEY_MAPPINGS[self.hf_dataset.meta.repo_id]["camera"]
+        self._state_key_mapping = KEY_MAPPINGS[self.hf_dataset.meta.repo_id]
+        self._action_key_mapping = KEY_MAPPINGS[self.hf_dataset.meta.repo_id]
 
     def _vision_preprocess(self, frames):
         processed_frames = []
@@ -124,8 +144,8 @@ class PreprocessedDataset(Dataset[T_co]):
     def __getitem__(self, index):
         data = self._dataset[index]
         image_inputs, h, w, resize_h, resize_w = self._vision_preprocess(data)
-        agent_pos = data["observation.state"]
-        action = data["action"]
+        agent_pos = data[self._state_key_mapping["state"]]
+        action = data[self._action_key_mapping["action"]]
         frame_index = data["frame_index"]
         instruction_info = {"instruction": data["task"]}
         generate_subtask_ratio = self.data_config.generate_subtask_ratio
@@ -189,7 +209,7 @@ class PreprocessedDataset(Dataset[T_co]):
             sampler=sampler,  # Use distributed sampler instead of shuffle=True
             num_workers=num_workers,
             collate_fn=DataCollator(
-                self.config, self.dataload_config, self.hf_dataset.meta.stats
+                self.config, self.dataload_config, self.norm_stats, self.lerobot_config
             ),
             pin_memory=True,  # Enable for GPU training
             persistent_workers=num_workers > 0,  # Only if num_workers > 0
@@ -241,13 +261,16 @@ class DataCollator:
     _processor_cache = {}
     _action_tokenizer_cache = {}
 
-    def __init__(self, config, dataload_config, stats):
+    def __init__(self, config, dataload_config, stats, lerobot_config):
         self.config = config
         self.dataload_config = dataload_config
         self.stats = stats
-        self.min_stat = stats["action"]["min"]
-        self.max_stat = stats["action"]["max"]
-        self.delta = self.max_stat - self.min_stat
+        self.action_min_stat = stats["action"].min
+        self.action_delta = stats["action"].delta
+        self.state_min_stat = stats["state"].min
+        self.state_delta = stats["state"].delta
+        self.lerobot_config = lerobot_config
+        
         self.use_fast_tokenizer = self.config.get("use_fast_tokenizer", False)
         self.load_processor()
 
@@ -270,11 +293,12 @@ class DataCollator:
             processor = AutoProcessor.from_pretrained(processor_path, use_fast=True)
             if self.config.get("padding_side", "left") == "left":
                 processor.tokenizer.padding_side = "left"
-
+            
+            new_tokens = ["<|propri|>", "<|action|>"]
+            processor.tokenizer.add_tokens(new_tokens)
             if self.use_fast_tokenizer and self.config.get("model_type") == "qwen2_5":
                 action_tokenizer = self._action_tokenizer_cache[action_tokenizer_path]
-                new_tokens = ["<|propri|>", "<|action|>"]
-                new_tokens += [
+                new_tokens = [
                     f"<|action_token_{i}|>" for i in range(action_tokenizer.vocab_size)
                 ]
                 processor.tokenizer.add_tokens(new_tokens)
@@ -301,7 +325,6 @@ class DataCollator:
         """
         Normalize action data using min-max normalization.
         """
-        delta = torch.from_numpy(delta)
         delta = torch.where(delta == 0, torch.ones_like(delta), delta)
         x = (action - min_stat) / delta
         x = x * 2 - 1
@@ -318,7 +341,7 @@ class DataCollator:
                     agent_pos = agent_pos.unsqueeze(1)
                 agent_pos_mask = (~torch.isnan(agent_pos)).float()
                 agent_pos.nan_to_num_(nan=0.0)
-                agent_pos = self._normalize(agent_pos, self.min_stat, self.delta)
+                agent_pos = self._normalize(agent_pos, self.state_min_stat, self.state_delta)
                 if agent_pos.shape[-1] != 20:
                     agent_pos = torch.cat(
                         [
@@ -350,7 +373,7 @@ class DataCollator:
                     action = action.unsqueeze(1)
                 dof_mask = (~torch.isnan(action)).float()
                 action.nan_to_num_(nan=0.0)
-                action = self._normalize(action, self.min_stat, self.delta)
+                action = self._normalize(action, self.action_min_stat, self.action_delta)
                 if action.shape[-1] != 20:
                     action = torch.cat(
                         [
@@ -393,7 +416,7 @@ class DataCollator:
             additional_inputs["text"],
             additional_inputs["action_chunk"],
             self.train_action_tokenizer if self.use_fast_tokenizer else None,
-            ["x2_normal"] * additional_inputs["text"].__len__(),
+            [self.lerobot_config["repo_id"]] * additional_inputs["text"].__len__(),
             additional_inputs["dof_mask"],
         )
 
@@ -415,7 +438,7 @@ class DataCollator:
 
         inputs.update(additional_inputs)
 
-        inputs["dataset_names"] = ["x2_normal"] * inputs["action_chunk"].shape[0]
+        inputs["dataset_names"] = [self.lerobot_config["repo_id"]] * inputs["action_chunk"].shape[0]
 
         return inputs
 
@@ -447,16 +470,20 @@ def load_lerobot_data(
 
     dataload_config = get_data_configs(config["data"])
 
-    # repo_id = "lerobot/aloha_mobile_cabinet"
-    repo_id = lerobot_config.get("repo_id", "lerobot/aloha_mobile_cabinet")
+    repo_id = lerobot_config.get("repo_id", None)
+    assert repo_id is not None, "repo id is required"
     root = lerobot_config.get("root", None)
     meta_info = LeRobotDatasetMetadata(repo_id)
     dataset_fps = meta_info.fps
     episodes_num = meta_info.total_episodes
+    
+    norm_stats_path = config.get("norm_stats_path", None)
+    assert norm_stats_path is not None, "norm stats is required"
+    norm_stats = load_norm_stats(norm_stats_path)
 
     delta_timestamps = {
         # action chunk
-        "action": [
+        KEY_MAPPINGS[repo_id]["action"]: [
             t / dataset_fps
             for t in range(dataload_config.get("action_horizon", 32) - 1)
         ],
@@ -486,6 +513,8 @@ def load_lerobot_data(
         train_dataset,
         config,
         dataload_config,
+        norm_stats,
+        lerobot_config,
         seed=seed,
         rank=rank,
         world_size=world_size,
@@ -567,11 +596,13 @@ def get_data_configs(config):
 
 
 class TestDataset(PreprocessedDataset):
-    def __init__(self, dataset, config, dataload_config, seed=42):
+    def __init__(self, dataset, config, dataload_config, norm_stats, lerobot_config, seed=42):
         super().__init__(
             dataset,
             config,
             dataload_config,
+            norm_stats,
+            lerobot_config,
             seed=seed,
             rank=0,
             world_size=1,
@@ -587,7 +618,7 @@ class TestDataset(PreprocessedDataset):
             self,
             batch_size=1,
             collate_fn=DataCollator(
-                self.config, self.dataload_config, self.hf_dataset.meta.stats
+                self.config, self.dataload_config, self.norm_stats, self.lerobot_config
             ),
         )
 
@@ -614,18 +645,24 @@ def load_test_dataset(
     # Set seed for reproducibility
     torch.manual_seed(seed)
 
-    dataset_fps = 50
+    repo_id = lerobot_config.get("repo_id", None)
+    assert repo_id is not None, "repo id is required"
+    meta_info = LeRobotDatasetMetadata(repo_id)
+    dataset_fps = meta_info.fps
     dataload_config = get_data_configs(config["data"])
+    
+    norm_stats_path = config.get("norm_stats_path", None)
+    assert norm_stats_path is not None, "norm stats is required"
+    norm_stats = load_norm_stats(norm_stats_path)
 
     delta_timestamps = {
         # action chunk
-        "action": [
+        KEY_MAPPINGS[repo_id]["action"]: [
             t / dataset_fps
-            for t in range(dataload_config.get("action_horizon", 32) - 1)
+            for t in range(dataload_config.get("action_horizon", 33) - 1)
         ],
     }
 
-    repo_id = lerobot_config.get("repo_id", "lerobot/aloha_mobile_cabinet")
     dataset = LeRobotDataset(
         repo_id,
         episodes=[episode],
@@ -637,6 +674,6 @@ def load_test_dataset(
     print(f"Number of episodes selected: {dataset.num_episodes}")
     print(f"Number of frames selected: {dataset.num_frames}")
 
-    dataset = TestDataset(dataset, config, dataload_config, seed=seed)
+    dataset = TestDataset(dataset, config, dataload_config, norm_stats, lerobot_config, seed=seed)
 
     return dataset

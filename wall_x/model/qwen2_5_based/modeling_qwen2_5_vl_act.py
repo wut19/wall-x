@@ -860,11 +860,12 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
         """
         # Create list of fast action token IDs
         fast_action_token_list = []
-        for i in range(self.processor.tokenizer.init_kwargs["action_token_vocab_size"]):
-            action_token_id = self.processor.tokenizer.convert_tokens_to_ids(
-                f"<|action_token_{i}|>"
-            )
-            fast_action_token_list.append(action_token_id)
+        if self.use_fast_tokenizer:
+            for i in range(self.processor.tokenizer.init_kwargs["action_token_vocab_size"]):
+                action_token_id = self.processor.tokenizer.convert_tokens_to_ids(
+                    f"<|action_token_{i}|>"
+                )
+                fast_action_token_list.append(action_token_id)
 
         # Get special action token IDs
         action_token_id = self.processor.tokenizer.convert_tokens_to_ids("<|action|>")
@@ -1863,6 +1864,8 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
                 # Convert discrete tokens to continuous actions
                 predict_action = torch.tensor(predict_action, device=self.device)
                 dof_mask = dof_mask.to(self.device).to(pixel_values.dtype)
+                print("dataset names", dataset_names)
+                dataset_names = ["libero_action"]
                 predict_action = (
                     self.action_preprocessor.normalizer_action.unnormalize_data(
                         predict_action, dataset_names, dof_mask
