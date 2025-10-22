@@ -245,7 +245,7 @@ class PreprocessedDataset(Dataset[T_co]):
             sampler=sampler,
             num_workers=num_workers,
             collate_fn=DataCollator(
-                self.config, self.dataload_config, self.hf_dataset.meta.stats
+                self.config, self.dataload_config, self.norm_stats, self.lerobot_config
             ),
             pin_memory=True,
             persistent_workers=num_workers > 0,
