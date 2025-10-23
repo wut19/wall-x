@@ -1930,8 +1930,6 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
                 # Convert discrete tokens to continuous actions
                 predict_action = torch.tensor(predict_action, device=self.device)
                 dof_mask = dof_mask.to(self.device).to(pixel_values.dtype)
-                print("dataset names", dataset_names)
-                dataset_names = ["libero_action"]
                 predict_action = (
                     self.action_preprocessor.normalizer_action.unnormalize_data(
                         predict_action, dataset_names, dof_mask
