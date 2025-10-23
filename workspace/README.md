@@ -38,6 +38,12 @@ pretrained_wallx_path: "/path/to/wallx_model/"      # Path to pretrained wallx m
 save_path: "/path/to/workspace/"                    # Path to save training outputs
 use_fast_tokenizer: False                           # True: train FAST, False: train Flow
 action_tokenizer_path: "/path/to/fast/"             # Must set if use_fast_tokenizer is True
+norm_stats_path: "/path/to/stats/"                  # Must set for normalize dataset
+```
+
+## Compute stats
+```bash
+    python wall-x/scripts/compute_norm_stats.py
 ```
 
 ## Training Parameters (Commonly Modified)
