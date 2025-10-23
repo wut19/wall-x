@@ -17,30 +17,10 @@ from wall_x.data.utils import (
 )
 
 from transformers import AutoProcessor
-from .utils import load_norm_stats, NormStats
+from .utils import load_norm_stats, KEY_MAPPINGS
 
 T_co = TypeVar("T_co", covariant=True)
 
-
-KEY_MAPPINGS = {
-    "lerobot/aloha_mobile_cabinet": {
-        "camera":{
-            "observation.images.cam_high": "face_view",
-            "observation.images.cam_left_wrist": "left_wrist_view",
-            "observation.images.cam_right_wrist": "right_wrist_view",
-        },
-        "state": "observation.state",
-        "action": "action"
-    },
-    "physical-intelligence/libero":{
-        "camera":{
-            "image" : "face_view",
-            "wrist_image" : "left_wrist_view",
-        },
-        "state": "state",
-        "action": "actions"
-    }
-}
 
 
 # Abstract class for dataset
@@ -479,7 +459,7 @@ def load_lerobot_data(
     
     norm_stats_path = config.get("norm_stats_path", None)
     assert norm_stats_path is not None, "norm stats is required, please refer to 'wall-x/scripts/compute_norm_stats.py' to compute stats"
-    norm_stats = load_norm_stats(norm_stats_path)
+    norm_stats = load_norm_stats(norm_stats_path, repo_id)
 
     delta_timestamps = {
         # action chunk
@@ -654,7 +634,7 @@ def load_test_dataset(
     
     norm_stats_path = config.get("norm_stats_path", None)
     assert norm_stats_path is not None, "norm stats is required, please refer to 'wall-x/scripts/compute_norm_stats.py' to compute stats"
-    norm_stats = load_norm_stats(norm_stats_path)
+    norm_stats = load_norm_stats(norm_stats_path, repo_id)
 
     delta_timestamps = {
         # action chunk

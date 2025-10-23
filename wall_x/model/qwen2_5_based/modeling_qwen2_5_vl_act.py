@@ -761,7 +761,7 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
         customized_dof_config = config["customized_robot_config"]["customized_dof_config"]
         customized_agent_pos_config = config["customized_robot_config"]["customized_agent_pos_config"]
         norm_stats_path = config["norm_stats_path"]
-        norm_stats = load_norm_stats(norm_stats_path)
+        norm_stats = load_norm_stats(norm_stats_path, config["data"]["lerobot_config"]["repo_id"])
         action_min = norm_stats["action"].min.numpy().tolist()
         action_delta = norm_stats["action"].delta.numpy().tolist()
         state_min = norm_stats["state"].min.numpy().tolist()

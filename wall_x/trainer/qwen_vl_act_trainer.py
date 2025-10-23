@@ -24,9 +24,6 @@ from wall_x.data.load_lerobot_dataset import (
     get_data_configs,
     load_lerobot_data,
 )
-from pprint import pprint
-from wall_x.utils.constant import action_statistic_dof
-from wall_x.data.utils import load_norm_stats
 
 
 def timer(func):
