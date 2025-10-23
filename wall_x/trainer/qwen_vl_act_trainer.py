@@ -138,50 +138,6 @@ class QwenVlAct_Trainer:
         # Initialize random seeds for reproducibility
         seed_all(self.seed)
         
-        # process customized robot config
-        if self.config.get("enable_customized_robot_config", False):
-            customized_dof_config = self.config["customized_robot_config"]["customized_dof_config"]
-            customized_agent_pos_config = self.config["customized_robot_config"]["customized_agent_pos_config"]
-            norm_stats_path = self.config["norm_stats_path"]
-            norm_stats = load_norm_stats(norm_stats_path)
-            action_min = norm_stats["action"].min.numpy().tolist()
-            action_delta = norm_stats["action"].delta.numpy().tolist()
-            state_min = norm_stats["state"].min.numpy().tolist()
-            state_delta = norm_stats["state"].delta.numpy().tolist()
-
-            
-            name = self.config["customized_robot_config"]["name"]
-            
-            dof_key = []
-            agent_pos_key = []
-            dof_value = []
-            agent_pos_value = []
-            stats_dict = {}
-            for k, v in customized_dof_config.items():
-                dof_key.append(k)
-                dof_value.append(v)
-            for k, v in customized_agent_pos_config.items():
-                agent_pos_key.append(k)
-                agent_pos_value.append(v)
-                
-            dof_idx = np.array([0] + dof_value).cumsum()
-            for i in range(len(dof_idx) - 1):
-                stats_dict[dof_key[i]] = {
-                    "min": action_min[dof_idx[i]:dof_idx[i+1]],
-                    "delta": action_delta[dof_idx[i]:dof_idx[i+1]],
-                }
-            
-            agent_pos_idx = np.array([0] + agent_pos_value).cumsum()
-            for i in range(len(agent_pos_idx) - 1):
-                stats_dict[agent_pos_key[i]] = {
-                    "min": state_min[agent_pos_idx[i]:agent_pos_idx[i+1]],
-                    "delta": state_delta[agent_pos_idx[i]:agent_pos_idx[i+1]],
-                }
-            
-            action_statistic_dof[name] = stats_dict
-            
-            print("Customized robot config added")
-            pprint(action_statistic_dof)
             
         # Training state variables
         self.start_epoch = 0
@@ -193,6 +149,7 @@ class QwenVlAct_Trainer:
         self.dataload_config = get_data_configs(self.config["data"])
         self.data_config_path = data_config_path
         self.use_fast_tokenizer = self.config.get("use_fast_tokenizer", False)
+
 
         # Load model and initialize training components
         self.load_model()
@@ -606,6 +563,15 @@ class QwenVlAct_Trainer:
                     action_tokenizer.vocab_size
                 )
                 self.processor.action_processor = action_tokenizer
+            
+            # Set the customized robot configuration to ensure consistency between cross-embodiment 
+            # representations and the Wall-X action dimensionality.
+            Qwen2_5_VLMoEForAction._set_customized_config(self.config)
+            customized_dof_config = self.config["customized_robot_config"]["customized_dof_config"]
+            customized_agent_pos_config = self.config["customized_robot_config"]["customized_agent_pos_config"]
+            setattr(config, "customized_dof_config", customized_dof_config)
+            setattr(config, "customized_agent_pos_config", customized_agent_pos_config)
+
             model = Qwen2_5_VLMoEForAction(
                 config,
                 self.use_fast_tokenizer,

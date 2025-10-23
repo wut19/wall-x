@@ -478,7 +478,7 @@ def load_lerobot_data(
     episodes_num = meta_info.total_episodes
     
     norm_stats_path = config.get("norm_stats_path", None)
-    assert norm_stats_path is not None, "norm stats is required"
+    assert norm_stats_path is not None, "norm stats is required, please refer to 'wall-x/scripts/compute_norm_stats.py' to compute stats"
     norm_stats = load_norm_stats(norm_stats_path)
 
     delta_timestamps = {
@@ -652,7 +652,7 @@ def load_test_dataset(
     dataload_config = get_data_configs(config["data"])
     
     norm_stats_path = config.get("norm_stats_path", None)
-    assert norm_stats_path is not None, "norm stats is required"
+    assert norm_stats_path is not None, "norm stats is required, please refer to 'wall-x/scripts/compute_norm_stats.py' to compute stats"
     norm_stats = load_norm_stats(norm_stats_path)
 
     delta_timestamps = {
