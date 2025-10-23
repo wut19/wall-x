@@ -59,14 +59,14 @@ enable_customized_robot_config: true
 customized_robot_config:
   name: "physical-intelligence/libero"
   customized_dof_config:
-    "panda_eef_with_gripper": 7
+    "panda_action_eef_with_gripper": 7
 
   customized_agent_pos_config:
-    "panda_joint_angle_with_gripper": 8
+    "panda_state_eef_with_gripper": 8
 
 # Checkpoint resuming configuration
 # resume:
-#   ckpt: "/x2robot_v2/vincent/workspace/opensource/checkpoints/libero/11"
+#   ckpt: "/path/to/ckpt"
 #   load_ckpt_only: false
 
 # Data configuration
