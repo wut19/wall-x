@@ -24,7 +24,6 @@ def load_lerobot_dataset(repo_id, action_horizon, args):
         delta_timestamps={
             key: [t / dataset_meta.fps for t in range(action_horizon)] for key in [KEY_MAPPINGS[repo_id]["action"]]
         },
-        episodes=[0,1,2,3,4,5],
     )
     num_batches = len(dataset) // args.batch_size
     generator = torch.Generator()
