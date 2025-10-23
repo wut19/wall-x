@@ -74,7 +74,7 @@ class Normalizer(nn.Module):
             }
         )
 
-    def normalize_data(self, xs, dataset_names):
+    def normalize_data(self, xs, dataset_names, dof_mask=None):
         """
         Normalize action data to [-1, 1] range using robot-specific statistics.
 
@@ -88,10 +88,19 @@ class Normalizer(nn.Module):
         new_xs = []
         # Filter out multimodal dataset entries
         dataset_names = [name for name in dataset_names if name != "x2_multimodal"]
+        dof_mask = dof_mask if dof_mask is not None else [None] * len(xs)
 
-        for x, dataset_name in zip(xs, dataset_names):
+        for x, dataset_name, mask in zip(xs, dataset_names, dof_mask):
+            # Apply DOF mask if provided
+            if mask is not None:
+                mask = mask[0].bool()
+                action_space_delta = self.delta[dataset_name][mask]
+                action_space_min = self.min[dataset_name][mask]
+            else:
+                action_space_delta = self.delta[dataset_name]
+                action_space_min = self.min[dataset_name]
             # Apply min-max normalization
-            x = (x - self.min[dataset_name]) / (self.delta[dataset_name])
+            x = (x - action_space_min) / (action_space_delta)
             # Scale to [-1, 1] range
             x = x * 2 - 1
             # Clamp to ensure bounds

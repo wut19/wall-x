@@ -346,7 +346,7 @@ class QwenVlAct_Trainer:
                     self.timers("optimizer").stop()
 
                     # Update global step and learning rate after gradient accumulation
-                    if (i + 1) % grad_accum_steps == 0:
+                    if self.accelerator.sync_gradients:
                         self.lr_scheduler.step()
                         self.global_step += 1
                         lr = self.lr_scheduler.get_last_lr()[0]

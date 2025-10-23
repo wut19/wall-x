@@ -855,6 +855,14 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
         state_dict = {}
         for file in safetensor_files:
             sd = load_file(file, device="cpu")
+            # filter normalizer statistic params
+            del_keys = []
+            for key in sd.keys():
+                if "action_preprocessor.normalizer" in key:
+                    print(f"filter load model weight {key}")
+                    del_keys.append(key)
+            for key in del_keys:
+                del sd[key]
             state_dict.update(sd)
 
         model.load_state_dict(state_dict, strict=False)
