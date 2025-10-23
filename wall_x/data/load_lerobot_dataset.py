@@ -151,7 +151,7 @@ class PreprocessedDataset(Dataset[T_co]):
         generate_subtask_ratio = self.data_config.generate_subtask_ratio
         complete_text, generate_subtask = get_wallx_normal_text(
             instruction_info,
-            33 - 1,
+            self.dataload_config.get("action_horizon", 33) - 1,
             frame_index,
             self.data_config.priority_order,
             self._cam_key_mapping,
@@ -485,7 +485,7 @@ def load_lerobot_data(
         # action chunk
         KEY_MAPPINGS[repo_id]["action"]: [
             t / dataset_fps
-            for t in range(dataload_config.get("action_horizon", 32) - 1)
+            for t in range(dataload_config.get("action_horizon", 33) - 1)
         ],
     }
     batch_size = config.get("batch_size_per_gpu", 8)
