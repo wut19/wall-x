@@ -21,7 +21,7 @@ profile_active_iters: 2
 # Training hyperparameters
 num_warmup_steps: 100
 num_training_steps: 64000000
-learning_rate: 0.00009
+learning_rate: 0.00005
 min_lr: 0.00005
 num_epoch: 100
 gradient_accumulation_steps: 1

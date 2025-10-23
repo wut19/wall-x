@@ -473,7 +473,7 @@ def load_lerobot_data(
     repo_id = lerobot_config.get("repo_id", None)
     assert repo_id is not None, "repo id is required"
     root = lerobot_config.get("root", None)
-    meta_info = LeRobotDatasetMetadata(repo_id)
+    meta_info = LeRobotDatasetMetadata(repo_id, root=root)
     dataset_fps = meta_info.fps
     episodes_num = meta_info.total_episodes
     
@@ -647,7 +647,8 @@ def load_test_dataset(
 
     repo_id = lerobot_config.get("repo_id", None)
     assert repo_id is not None, "repo id is required"
-    meta_info = LeRobotDatasetMetadata(repo_id)
+    root = lerobot_config.get("root", None)
+    meta_info = LeRobotDatasetMetadata(repo_id, root=root)
     dataset_fps = meta_info.fps
     dataload_config = get_data_configs(config["data"])
     
@@ -668,6 +669,7 @@ def load_test_dataset(
         episodes=[episode],
         delta_timestamps=delta_timestamps,
         video_backend="pyav",
+        root=root,
     )
 
     print(f"Selected episodes: {dataset.episodes}")

@@ -527,7 +527,8 @@ class QwenVlAct_Trainer:
         if model_type == "wall-oss":
             model = Qwen2_5_VLMoEForAction.from_pretrained(
                 self.config["pretrained_wallx_path"],
-                **{"use_fast_tokenizer": self.use_fast_tokenizer},
+                train_config=self.config,
+                action_tokenizer_path=self.config["action_tokenizer_path"] if self.use_fast_tokenizer else None,
             )
             self.processor = model.processor
             model = model.to(torch.bfloat16)
