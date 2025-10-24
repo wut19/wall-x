@@ -1,4 +1,3 @@
-
 import yaml
 import torch
 import tqdm
@@ -7,6 +6,7 @@ from wall_x.data.load_lerobot_dataset import KEY_MAPPINGS
 import normalize
 import numpy as np
 import argparse
+
 
 def load_config(config_path):
     """Load configuration from YAML file."""
@@ -17,12 +17,14 @@ def load_config(config_path):
 
     return config
 
+
 def load_lerobot_dataset(repo_id, action_horizon, args):
     dataset_meta = LeRobotDatasetMetadata(repo_id)
     dataset = LeRobotDataset(
         repo_id,
         delta_timestamps={
-            key: [t / dataset_meta.fps for t in range(action_horizon)] for key in [KEY_MAPPINGS[repo_id]["action"]]
+            key: [t / dataset_meta.fps for t in range(action_horizon)]
+            for key in [KEY_MAPPINGS[repo_id]["action"]]
         },
     )
     num_batches = len(dataset) // args.batch_size
@@ -39,6 +41,7 @@ def load_lerobot_dataset(repo_id, action_horizon, args):
     )
     return data_loader, num_batches
 
+
 if __name__ == "__main__":
     # set args
     parser = argparse.ArgumentParser()
@@ -46,7 +49,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
-    
+
     # Configs
     path = "/path/to/config.yml"
     output_path = "/path/to/output"
@@ -63,7 +66,10 @@ if __name__ == "__main__":
     for batch in tqdm.tqdm(data_loader, total=num_batches, desc="Computing stats"):
         for key in keys:
             stats[key].update(np.asarray(batch[KEY_MAPPINGS[repo_id][key]]))
-    norm_stats = {KEY_MAPPINGS[repo_id][key]: stats.get_statistics() for key, stats in stats.items()}
+    norm_stats = {
+        KEY_MAPPINGS[repo_id][key]: stats.get_statistics()
+        for key, stats in stats.items()
+    }
 
     output_path = output_path + "/" + repo_id
     print(f"Writing stats to: {output_path}")
