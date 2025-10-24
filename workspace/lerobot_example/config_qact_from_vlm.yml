@@ -62,6 +62,41 @@ agent_pos_config:
 #   ckpt: "/path/to/resume_model/"
 #   load_ckpt_only: true
 
+norm_stats_path: "/path/to/norm_stats.json"
+
+enable_customized_robot_config: true
+customized_robot_config:
+  name: "physical-intelligence/libero"
+  customized_dof_config:
+    "action_left_shoulder" : 1
+    "action_left_elbow" : 1
+    "action_left_forearm_roll" : 1
+    "action_left_wrist_angle" : 1
+    "action_left_wrist_rotate" : 1
+    "action_left_gripper" : 1
+    "action_right_waist" : 1
+    "action_right_shoulder" : 1
+    "action_right_elbow" : 1
+    "action_right_forearm_roll" : 1
+    "action_right_wrist_angle" : 1
+    "action_right_wrist_rotate" : 1
+    "action_right_gripper" : 1
+
+  customized_agent_pos_config:
+    "state_left_shoulder" : 1
+    "state_left_elbow" : 1
+    "state_left_forearm_roll" : 1
+    "state_left_wrist_angle" : 1
+    "state_left_wrist_rotate" : 1
+    "state_left_gripper" : 1
+    "state_right_waist" : 1
+    "state_right_shoulder" : 1
+    "state_right_elbow" : 1
+    "state_right_forearm_roll" : 1
+    "state_right_wrist_angle" : 1
+    "state_right_wrist_rotate" : 1
+    "state_right_gripper" : 1
+
 # Data configuration
 data:
   use_lerobot: true

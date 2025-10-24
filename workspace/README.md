@@ -27,7 +27,7 @@ bash ./workspace/lerobot_example/run.sh
 ```
 
 ## Enable FAST tokenizer
-To fine-tune using the FAST tokenizer, please download the repository and update the `action_tokenizer_path`. Make sure to set `use_fast_tokenizer` to `true`:
+To fine-tune using the FAST tokenizer, please download the repository and update the `action_tokenizer_path`. Make sure to set `use_fast_tokenizer` to `true` and q01 and q99 to normalize the dataset, refer to `wall-x/scripts/compute_norm_stats.py`:
 ```bash
 git clone https://huggingface.co/physical-intelligence/fast
 ```
@@ -38,7 +38,26 @@ pretrained_wallx_path: "/path/to/wallx_model/"      # Path to pretrained wallx m
 save_path: "/path/to/workspace/"                    # Path to save training outputs
 use_fast_tokenizer: False                           # True: train FAST, False: train Flow
 action_tokenizer_path: "/path/to/fast/"             # Must set if use_fast_tokenizer is True
+norm_stats_path: "/path/to/stats/"                  # Must set for normalize dataset
 ```
+## Customize your robot configuration
+Ensure that the sum of the configuration dimensions corresponds to the values specified in norm_stats.json, and that each key is unique. The maximum dimensionality is set to 20, consistent with our robot configuration.
+```yaml
+  customized_dof_config:
+    "action_eef": 6
+    "action_gripper": 1
+
+  customized_agent_pos_config:
+    "state_eef_with_gripper": 7
+```
+
+## Compute stats
+```bash
+    python wall-x/scripts/compute_norm_stats.py
+```
+
+## Configuration Explain
+- `agent_pos_config` corresponds to `obs_action_keys` and subsequently to state, while `dof_config` corresponds to `predict_action_keys` and subsequently to action. Note that the state and action may not necessarily share the same set of DoF.
 
 ## Training Parameters (Commonly Modified)
 
@@ -96,6 +115,8 @@ Keep `agent_pos_config` consistent with `dof_config`.
 ```bash
     # refer to accelerate/commands/merge.py
     accelerate merge-weights /path/to/sharded_tensors /path/to/model.safetensors
+    # copy the saved processor files
+    cp /path/to/saved_processor_dir/* /path/to/model.safetensors
 ```
 
 ## Memory Usage

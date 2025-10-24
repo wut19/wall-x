@@ -2,14 +2,15 @@
 # This configuration supports multi-modal learning with vision, language, and action data
 
 # Model and paths configuration
-log_name: "robotic_training"
-log_project: "vla_training"
-model_type: wall-oss
-pretrained_wallx_path: "/path/to/wallx_model/"  # Must set
-save_path: "/path/to/workspace/"                # Must set
-use_fast_tokenizer: False                       # True: train FAST, False: train Flow
-action_tokenizer_path: "/path/to/fast/"         # Must set if use_fast_tokenizer is true
+log_name: "opensource_training"
+log_project: "libero"
+model_type: qwen2_5
+use_fast_tokenizer: true
+pretrained_wallx_path: "/path/to/qwen/"
+action_tokenizer_path: "/path/to/fast/"
+qwen_vl_act_config_path: "/path/to/qwen25_config.json"
 
+save_path: "/path/to/save"
 # Torch Profile
 profile: False
 profile_save_path: /path/to/profile/
@@ -23,14 +24,10 @@ num_training_steps: 64000000
 learning_rate: 0.00005
 min_lr: 0.00005
 num_epoch: 100
-gradient_accumulation_steps: 32
+gradient_accumulation_steps: 1
 batch_size_per_gpu: 8
 padding_side: left
-epoch_save_interval: 10
-
-# Training optimization settings
-FSDP2: True
-torch_compile: False
+epoch_save_interval: 1
 
 # Robot configuration - Define degrees of freedom for each component
 dof_config:
@@ -56,45 +53,21 @@ agent_pos_config:
   height: 1
   car_pose: 3
 
-# # Checkpoint resuming configuration
-# resume:
-#   ckpt: "/path/to/resume_model/"
-#   load_ckpt_only: true
-
-norm_stats_path: "/path/to/norm_stats.json"
+norm_stats_path: "wall-x/workspace/lerobot_example/libero/libero_norm_stats.json"
 
 enable_customized_robot_config: true
 customized_robot_config:
-  name: "lerobot/aloha_mobile_cabinet"
+  name: "physical-intelligence/libero"
   customized_dof_config:
-    "action_left_shoulder" : 1
-    "action_left_elbow" : 1
-    "action_left_forearm_roll" : 1
-    "action_left_wrist_angle" : 1
-    "action_left_wrist_rotate" : 1
-    "action_left_gripper" : 1
-    "action_right_waist" : 1
-    "action_right_shoulder" : 1
-    "action_right_elbow" : 1
-    "action_right_forearm_roll" : 1
-    "action_right_wrist_angle" : 1
-    "action_right_wrist_rotate" : 1
-    "action_right_gripper" : 1
+    "panda_action_eef_with_gripper": 7
 
   customized_agent_pos_config:
-    "state_left_shoulder" : 1
-    "state_left_elbow" : 1
-    "state_left_forearm_roll" : 1
-    "state_left_wrist_angle" : 1
-    "state_left_wrist_rotate" : 1
-    "state_left_gripper" : 1
-    "state_right_waist" : 1
-    "state_right_shoulder" : 1
-    "state_right_elbow" : 1
-    "state_right_forearm_roll" : 1
-    "state_right_wrist_angle" : 1
-    "state_right_wrist_rotate" : 1
-    "state_right_gripper" : 1
+    "panda_state_eef_with_gripper": 8
+
+# Checkpoint resuming configuration
+# resume:
+#   ckpt: "/path/to/ckpt"
+#   load_ckpt_only: false
 
 # Data configuration
 data:
@@ -102,7 +75,7 @@ data:
 
   # LeRobot dataset configuration
   lerobot_config:
-    repo_id: "lerobot/aloha_mobile_cabinet"
+    repo_id: "physical-intelligence/libero"
     root: null
     episodes: null
     image_transforms: null

@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Beta
 from wall_x.utils.constant import action_statistic_dof
+import logging
 
 
 class Normalizer(nn.Module):
@@ -13,6 +14,16 @@ class Normalizer(nn.Module):
     configurations. It maintains per-robot statistics (min values and deltas) and applies
     normalization to map actions to the [-1, 1] range.
     """
+
+    def _pad_to_action_dim(self, xs, action_dim):
+        """
+        Pad the action data to the action dimension.
+        """
+        if xs.shape[-1] < action_dim:
+            padding_shape = list(xs.shape)
+            padding_shape[-1] = action_dim - padding_shape[-1]
+            xs = torch.cat([xs, torch.zeros(padding_shape).to(xs.device)], dim=-1)
+        return xs
 
     def __init__(self, action_statistic_dof, dof_config):
         """
@@ -25,6 +36,8 @@ class Normalizer(nn.Module):
         super(Normalizer, self).__init__()
 
         action_statistic = {}
+        # hard code the action dimension to 20
+        action_dim = 20
 
         # Process statistics for each robot
         for robot_name in action_statistic_dof.keys():
@@ -39,11 +52,17 @@ class Normalizer(nn.Module):
                     all_dof_delta.extend(action_statistic_dof[robot_name][k]["delta"])
                 else:
                     # Use default values if statistics not available
+                    # raise ValueError(f"Statistics not available for {k} of {robot_name}")
+                    logging.warning(
+                        f"Statistics not available for {k} of {robot_name}, using default values"
+                    )
                     all_dof_min.extend([0.0] * dof_config[k])
                     all_dof_delta.extend([1.0] * dof_config[k])
 
-            all_dof_min = torch.tensor(all_dof_min)
-            all_dof_delta = torch.tensor(all_dof_delta)
+            all_dof_min = self._pad_to_action_dim(torch.tensor(all_dof_min), action_dim)
+            all_dof_delta = self._pad_to_action_dim(
+                torch.tensor(all_dof_delta), action_dim
+            )
             action_statistic[robot_name]["min"] = all_dof_min
             action_statistic[robot_name]["delta"] = all_dof_delta
 
@@ -61,7 +80,7 @@ class Normalizer(nn.Module):
             }
         )
 
-    def normalize_data(self, xs, dataset_names):
+    def normalize_data(self, xs, dataset_names, dof_mask=None):
         """
         Normalize action data to [-1, 1] range using robot-specific statistics.
 
@@ -75,10 +94,19 @@ class Normalizer(nn.Module):
         new_xs = []
         # Filter out multimodal dataset entries
         dataset_names = [name for name in dataset_names if name != "x2_multimodal"]
+        dof_mask = dof_mask if dof_mask is not None else [None] * len(xs)
 
-        for x, dataset_name in zip(xs, dataset_names):
+        for x, dataset_name, mask in zip(xs, dataset_names, dof_mask):
+            # Apply DOF mask if provided
+            if mask is not None:
+                mask = mask[0].bool()
+                action_space_delta = self.delta[dataset_name][mask]
+                action_space_min = self.min[dataset_name][mask]
+            else:
+                action_space_delta = self.delta[dataset_name]
+                action_space_min = self.min[dataset_name]
             # Apply min-max normalization
-            x = (x - self.min[dataset_name]) / (self.delta[dataset_name])
+            x = (x - action_space_min) / (action_space_delta)
             # Scale to [-1, 1] range
             x = x * 2 - 1
             # Clamp to ensure bounds
@@ -210,9 +238,21 @@ class ActionProcessor(nn.Module):
         self.hidden_size = config.hidden_size
 
         # Initialize data normalizers for actions and proprioception
-        self.normalizer_action = Normalizer(action_statistic_dof, config.dof_config)
+        self.normalizer_action = Normalizer(
+            action_statistic_dof,
+            (
+                config.customized_dof_config
+                if hasattr(config, "customized_dof_config")
+                else config.dof_config
+            ),
+        )
         self.normalizer_propri = Normalizer(
-            action_statistic_dof, config.agent_pos_config
+            action_statistic_dof,
+            (
+                config.customized_agent_pos_config
+                if hasattr(config, "customized_agent_pos_config")
+                else config.agent_pos_config
+            ),
         )
 
         # Proprioception projection layer (includes history/current state)
