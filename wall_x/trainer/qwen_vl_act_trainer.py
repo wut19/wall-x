@@ -134,8 +134,7 @@ class QwenVlAct_Trainer:
 
         # Initialize random seeds for reproducibility
         seed_all(self.seed)
-        
-            
+
         # Training state variables
         self.start_epoch = 0
         self.global_step = 0
@@ -146,7 +145,6 @@ class QwenVlAct_Trainer:
         self.dataload_config = get_data_configs(self.config["data"])
         self.data_config_path = data_config_path
         self.use_fast_tokenizer = self.config.get("use_fast_tokenizer", False)
-
 
         # Load model and initialize training components
         self.load_model()
@@ -525,7 +523,11 @@ class QwenVlAct_Trainer:
             model = Qwen2_5_VLMoEForAction.from_pretrained(
                 self.config["pretrained_wallx_path"],
                 train_config=self.config,
-                action_tokenizer_path=self.config["action_tokenizer_path"] if self.use_fast_tokenizer else None,
+                action_tokenizer_path=(
+                    self.config["action_tokenizer_path"]
+                    if self.use_fast_tokenizer
+                    else None
+                ),
             )
             self.processor = model.processor
             model = model.to(torch.bfloat16)
@@ -561,12 +563,16 @@ class QwenVlAct_Trainer:
                     action_tokenizer.vocab_size
                 )
                 self.processor.action_processor = action_tokenizer
-            
-            # Set the customized robot configuration to ensure consistency between cross-embodiment 
+
+            # Set the customized robot configuration to ensure consistency between cross-embodiment
             # representations and the Wall-X action dimensionality.
             Qwen2_5_VLMoEForAction._set_customized_config(self.config)
-            customized_dof_config = self.config["customized_robot_config"]["customized_dof_config"]
-            customized_agent_pos_config = self.config["customized_robot_config"]["customized_agent_pos_config"]
+            customized_dof_config = self.config["customized_robot_config"][
+                "customized_dof_config"
+            ]
+            customized_agent_pos_config = self.config["customized_robot_config"][
+                "customized_agent_pos_config"
+            ]
             setattr(config, "customized_dof_config", customized_dof_config)
             setattr(config, "customized_agent_pos_config", customized_agent_pos_config)
 

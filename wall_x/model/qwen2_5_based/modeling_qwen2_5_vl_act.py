@@ -749,27 +749,38 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
     @classmethod
     def _set_customized_config(cls, config):
         """
-            Processing norm_stats.json and reconstruct the DoF mapping
+        Processing norm_stats.json and reconstruct the DoF mapping
         """
         dataload_config = config["data"]
         if not dataload_config.get("use_lerobot", False):
-            raise NotImplementedError("Not implemented for non-lerobot dataset currently")
+            raise NotImplementedError(
+                "Not implemented for non-lerobot dataset currently"
+            )
 
-        enable_customized_robot_config = config.get("enable_customized_robot_config", False)
-        assert enable_customized_robot_config, "enable_customized_robot_config must be true when use lerobot dataset"
+        enable_customized_robot_config = config.get(
+            "enable_customized_robot_config", False
+        )
+        assert (
+            enable_customized_robot_config
+        ), "enable_customized_robot_config must be true when use lerobot dataset"
 
-        customized_dof_config = config["customized_robot_config"]["customized_dof_config"]
-        customized_agent_pos_config = config["customized_robot_config"]["customized_agent_pos_config"]
+        customized_dof_config = config["customized_robot_config"][
+            "customized_dof_config"
+        ]
+        customized_agent_pos_config = config["customized_robot_config"][
+            "customized_agent_pos_config"
+        ]
         norm_stats_path = config["norm_stats_path"]
-        norm_stats = load_norm_stats(norm_stats_path, config["data"]["lerobot_config"]["repo_id"])
+        norm_stats = load_norm_stats(
+            norm_stats_path, config["data"]["lerobot_config"]["repo_id"]
+        )
         action_min = norm_stats["action"].min.numpy().tolist()
         action_delta = norm_stats["action"].delta.numpy().tolist()
         state_min = norm_stats["state"].min.numpy().tolist()
         state_delta = norm_stats["state"].delta.numpy().tolist()
 
-        
         name = config["customized_robot_config"]["name"]
-        
+
         dof_key = []
         agent_pos_key = []
         dof_value = []
@@ -781,23 +792,23 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
         for k, v in customized_agent_pos_config.items():
             agent_pos_key.append(k)
             agent_pos_value.append(v)
-            
+
         dof_idx = np.array([0] + dof_value).cumsum()
         for i in range(len(dof_idx) - 1):
             stats_dict[dof_key[i]] = {
-                "min": action_min[dof_idx[i]:dof_idx[i+1]],
-                "delta": action_delta[dof_idx[i]:dof_idx[i+1]],
+                "min": action_min[dof_idx[i] : dof_idx[i + 1]],
+                "delta": action_delta[dof_idx[i] : dof_idx[i + 1]],
             }
-        
+
         agent_pos_idx = np.array([0] + agent_pos_value).cumsum()
         for i in range(len(agent_pos_idx) - 1):
             stats_dict[agent_pos_key[i]] = {
-                "min": state_min[agent_pos_idx[i]:agent_pos_idx[i+1]],
-                "delta": state_delta[agent_pos_idx[i]:agent_pos_idx[i+1]],
+                "min": state_min[agent_pos_idx[i] : agent_pos_idx[i + 1]],
+                "delta": state_delta[agent_pos_idx[i] : agent_pos_idx[i + 1]],
             }
-        
+
         action_statistic_dof[name] = stats_dict
-        
+
         print("Customized robot config added")
         pprint(action_statistic_dof)
 
@@ -833,15 +844,18 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
                 action_tokenizer_path, trust_remote_code=True
             )
 
-        # Set the customized robot configuration to ensure consistency between cross-embodiment 
+        # Set the customized robot configuration to ensure consistency between cross-embodiment
         # representations and the Wall-X action dimensionality.
         cls._set_customized_config(train_config)
-        customized_dof_config = train_config["customized_robot_config"]["customized_dof_config"]
-        customized_agent_pos_config = train_config["customized_robot_config"]["customized_agent_pos_config"]
+        customized_dof_config = train_config["customized_robot_config"][
+            "customized_dof_config"
+        ]
+        customized_agent_pos_config = train_config["customized_robot_config"][
+            "customized_agent_pos_config"
+        ]
         setattr(config, "customized_dof_config", customized_dof_config)
         setattr(config, "customized_agent_pos_config", customized_agent_pos_config)
 
-        
         # Initialize model with configuration and processor
         model = cls(config, processor=processor, **kwargs)
 
@@ -935,7 +949,9 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
         # Create list of fast action token IDs
         fast_action_token_list = []
         if self.use_fast_tokenizer:
-            for i in range(self.processor.tokenizer.init_kwargs["action_token_vocab_size"]):
+            for i in range(
+                self.processor.tokenizer.init_kwargs["action_token_vocab_size"]
+            ):
                 action_token_id = self.processor.tokenizer.convert_tokens_to_ids(
                     f"<|action_token_{i}|>"
                 )

@@ -22,7 +22,6 @@ from .utils import load_norm_stats, KEY_MAPPINGS
 T_co = TypeVar("T_co", covariant=True)
 
 
-
 # Abstract class for dataset
 class Dataset(Protocol[T_co]):
     """Interface for a dataset with random access."""
@@ -70,7 +69,7 @@ class PreprocessedDataset(Dataset[T_co]):
         self.dataload_config = dataload_config
         self.norm_stats = norm_stats
         self.lerobot_config = lerobot_config
-        
+
         self.data_config = X2RDataProcessingConfig().update(
             train_test_split=self.dataload_config["train_test_split"],
             split_seed=self.dataload_config["split_seed"],
@@ -250,7 +249,7 @@ class DataCollator:
         self.state_min_stat = stats["state"].min
         self.state_delta = stats["state"].delta
         self.lerobot_config = lerobot_config
-        
+
         self.use_fast_tokenizer = self.config.get("use_fast_tokenizer", False)
         self.load_processor()
 
@@ -273,7 +272,7 @@ class DataCollator:
             processor = AutoProcessor.from_pretrained(processor_path, use_fast=True)
             if self.config.get("padding_side", "left") == "left":
                 processor.tokenizer.padding_side = "left"
-            
+
             new_tokens = ["<|propri|>", "<|action|>"]
             processor.tokenizer.add_tokens(new_tokens)
             if self.use_fast_tokenizer and self.config.get("model_type") == "qwen2_5":
@@ -321,7 +320,9 @@ class DataCollator:
                     agent_pos = agent_pos.unsqueeze(1)
                 agent_pos_mask = (~torch.isnan(agent_pos)).float()
                 agent_pos.nan_to_num_(nan=0.0)
-                agent_pos = self._normalize(agent_pos, self.state_min_stat, self.state_delta)
+                agent_pos = self._normalize(
+                    agent_pos, self.state_min_stat, self.state_delta
+                )
                 if agent_pos.shape[-1] != 20:
                     agent_pos = torch.cat(
                         [
@@ -353,7 +354,9 @@ class DataCollator:
                     action = action.unsqueeze(1)
                 dof_mask = (~torch.isnan(action)).float()
                 action.nan_to_num_(nan=0.0)
-                action = self._normalize(action, self.action_min_stat, self.action_delta)
+                action = self._normalize(
+                    action, self.action_min_stat, self.action_delta
+                )
                 if action.shape[-1] != 20:
                     action = torch.cat(
                         [
@@ -418,7 +421,9 @@ class DataCollator:
 
         inputs.update(additional_inputs)
 
-        inputs["dataset_names"] = [self.lerobot_config["repo_id"]] * inputs["action_chunk"].shape[0]
+        inputs["dataset_names"] = [self.lerobot_config["repo_id"]] * inputs[
+            "action_chunk"
+        ].shape[0]
 
         return inputs
 
@@ -456,9 +461,11 @@ def load_lerobot_data(
     meta_info = LeRobotDatasetMetadata(repo_id, root=root)
     dataset_fps = meta_info.fps
     episodes_num = meta_info.total_episodes
-    
+
     norm_stats_path = config.get("norm_stats_path", None)
-    assert norm_stats_path is not None, "norm stats is required, please refer to 'wall-x/scripts/compute_norm_stats.py' to compute stats"
+    assert (
+        norm_stats_path is not None
+    ), "norm stats is required, please refer to 'wall-x/scripts/compute_norm_stats.py' to compute stats"
     norm_stats = load_norm_stats(norm_stats_path, repo_id)
 
     delta_timestamps = {
@@ -576,7 +583,9 @@ def get_data_configs(config):
 
 
 class TestDataset(PreprocessedDataset):
-    def __init__(self, dataset, config, dataload_config, norm_stats, lerobot_config, seed=42):
+    def __init__(
+        self, dataset, config, dataload_config, norm_stats, lerobot_config, seed=42
+    ):
         super().__init__(
             dataset,
             config,
@@ -631,9 +640,11 @@ def load_test_dataset(
     meta_info = LeRobotDatasetMetadata(repo_id, root=root)
     dataset_fps = meta_info.fps
     dataload_config = get_data_configs(config["data"])
-    
+
     norm_stats_path = config.get("norm_stats_path", None)
-    assert norm_stats_path is not None, "norm stats is required, please refer to 'wall-x/scripts/compute_norm_stats.py' to compute stats"
+    assert (
+        norm_stats_path is not None
+    ), "norm stats is required, please refer to 'wall-x/scripts/compute_norm_stats.py' to compute stats"
     norm_stats = load_norm_stats(norm_stats_path, repo_id)
 
     delta_timestamps = {
@@ -656,6 +667,8 @@ def load_test_dataset(
     print(f"Number of episodes selected: {dataset.num_episodes}")
     print(f"Number of frames selected: {dataset.num_frames}")
 
-    dataset = TestDataset(dataset, config, dataload_config, norm_stats, lerobot_config, seed=seed)
+    dataset = TestDataset(
+        dataset, config, dataload_config, norm_stats, lerobot_config, seed=seed
+    )
 
     return dataset

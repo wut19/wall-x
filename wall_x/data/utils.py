@@ -16,22 +16,22 @@ import json
 
 KEY_MAPPINGS = {
     "lerobot/aloha_mobile_cabinet": {
-        "camera":{
+        "camera": {
             "observation.images.cam_high": "face_view",
             "observation.images.cam_left_wrist": "left_wrist_view",
             "observation.images.cam_right_wrist": "right_wrist_view",
         },
         "state": "observation.state",
-        "action": "action"
+        "action": "action",
     },
-    "physical-intelligence/libero":{
-        "camera":{
-            "image" : "face_view",
-            "wrist_image" : "left_wrist_view",
+    "physical-intelligence/libero": {
+        "camera": {
+            "image": "face_view",
+            "wrist_image": "left_wrist_view",
         },
         "state": "state",
-        "action": "actions"
-    }
+        "action": "actions",
+    },
 }
 
 CAMERA_NAME_MAPPING = {
@@ -631,32 +631,34 @@ def replace_action_token(
 
     return text
 
+
 @dataclass
 class NormStats:
     min: torch.Tensor
     max: torch.Tensor
     delta: torch.Tensor
 
+
 def load_norm_stats(norm_stats_path, dataset_name):
-    with open(norm_stats_path, 'r') as f:
+    with open(norm_stats_path, "r") as f:
         norm_stats = json.load(f)
     action_key = KEY_MAPPINGS[dataset_name]["action"]
     state_key = KEY_MAPPINGS[dataset_name]["state"]
-    q01=torch.tensor(norm_stats["norm_stats"][action_key]["q01"])
-    q99=torch.tensor(norm_stats["norm_stats"][action_key]["q99"])
+    q01 = torch.tensor(norm_stats["norm_stats"][action_key]["q01"])
+    q99 = torch.tensor(norm_stats["norm_stats"][action_key]["q99"])
     delta = q99 - q01
     action_norm_stats = NormStats(
         min=q01,
         max=q99,
         delta=delta,
     )
-    q01=torch.tensor(norm_stats["norm_stats"][state_key]["q01"])
-    q99=torch.tensor(norm_stats["norm_stats"][state_key]["q99"])
+    q01 = torch.tensor(norm_stats["norm_stats"][state_key]["q01"])
+    q99 = torch.tensor(norm_stats["norm_stats"][state_key]["q99"])
     delta = q99 - q01
     state_norm_stats = NormStats(
         min=q01,
         max=q99,
         delta=delta,
     )
-    
+
     return {"action": action_norm_stats, "state": state_norm_stats}
