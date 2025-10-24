@@ -263,7 +263,6 @@ class QwenVlAct_Trainer:
             self.train_dataloader = self.dataset.get_train_dataloader()
 
         self.model.train()
-        grad_accum_steps = self.config.get("gradient_accumulation_steps", 1)
         total = len(self.train_dataloader)
         t0 = time.time()
         enable_profiling = self.config["profile"]
