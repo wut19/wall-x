@@ -7,6 +7,7 @@ from wall_x.data.load_lerobot_dataset import load_test_dataset, get_data_configs
 from safetensors.torch import load_file
 import torch.distributed.checkpoint as dcp
 from transformers import AutoProcessor
+from lerobot.datasets.lerobot_dataset import LeRobotDataset, LeRobotDatasetMetadata
 
 
 class VQAWrapper(object):
@@ -181,8 +182,34 @@ path = "/x2robot_v2/geoffrey/wall-x/workspace/lerobot_example/config_qact.yml"
 config = load_config(path)
 dataload_config = get_data_configs(config["data"])
 lerobot_config = dataload_config.get("lerobot_config", {})
-dataset = load_test_dataset(config, lerobot_config, seed=19)
+repo_id = lerobot_config.get("repo_id", "lerobot/aloha_mobile_cabinet")
+
+dataset_fps = 30
+dataload_config = get_data_configs(config["data"])
+
+delta_timestamps = {
+    # action chunk
+    "action": [
+        t / dataset_fps
+        for t in range(dataload_config.get("action_horizon", 32) - 1)
+    ],
+}
+
+train_dataset = LeRobotDataset(
+        repo_id,
+        delta_timestamps=delta_timestamps,
+        video_backend="pyav",
+    )
+
+min_stat = train_dataset.meta.stats["action"]["min"]
+max_stat = train_dataset.meta.stats["action"]["max"]
+delta_stat = max_stat - min_stat
+print(f"min_stat: {min_stat}, max_stat: {max_stat}, delta_stat: {delta_stat}")
+
+
+dataset = load_test_dataset(config, train_dataset.meta, lerobot_config, seed=19)
 dataloader = dataset.get_dataloader()
+
 
 total_frames = len(dataloader)
 
@@ -194,6 +221,7 @@ pred_traj = torch.zeros((total_frames, action_dim))
 for idx, batch in enumerate(dataloader):
     if idx % pred_horizon == 0 and idx + pred_horizon < total_frames:
         batch = batch.to("cuda")
+        print(batch.keys())
         with torch.no_grad():
             outputs = model(
                 **batch,
@@ -207,11 +235,18 @@ for idx, batch in enumerate(dataloader):
         # Denormalize ground truth actions
         gt_action_chunk = batch["action_chunk"][:, :, :action_dim]
         dof_mask = batch["dof_mask"].to(gt_action_chunk.dtype)
-        denormalized_gt = model.action_preprocessor.normalizer_action.unnormalize_data(
-            gt_action_chunk, ["x2_normal"], dof_mask
-        )
-        gt_traj[idx : idx + pred_horizon] = denormalized_gt.detach().cpu()
+        # denormalized_gt = model.action_preprocessor.normalizer_action.unnormalize_data(
+        #     gt_action_chunk, ["x2_normal"], dof_mask
+        # )
+        # gt_traj[idx : idx + pred_horizon] = denormalized_gt.detach().cpu()
+        gt_traj[idx : idx + pred_horizon] = gt_action_chunk.detach().cpu()
 
+gt_traj = torch.clamp(gt_traj, -1, 1)
+pred_traj = torch.clamp(pred_traj, -1, 1)
+gt_traj = (gt_traj + 1) / 2
+pred_traj = (pred_traj + 1) / 2
+gt_traj = gt_traj * torch.tensor(delta_stat).unsqueeze(0) + torch.tensor(min_stat).unsqueeze(0) 
+pred_traj = pred_traj * torch.tensor(delta_stat).unsqueeze(0) + torch.tensor(min_stat).unsqueeze(0)
 
 gt_traj_np = gt_traj.numpy()
 pred_traj_np = pred_traj.numpy()

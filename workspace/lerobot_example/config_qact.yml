@@ -19,9 +19,9 @@ profile_active_iters: 2
 
 # Training hyperparameters
 num_warmup_steps: 100
-num_training_steps: 64000000
-learning_rate: 0.00009
-min_lr: 0.00005
+num_training_steps: 4000
+learning_rate: 0.00002
+min_lr: 0.000004
 num_epoch: 100
 gradient_accumulation_steps: 32
 batch_size_per_gpu: 8
@@ -29,7 +29,7 @@ padding_side: left
 epoch_save_interval: 10
 
 # Training optimization settings
-FSDP2: True
+FSDP2: False
 torch_compile: False
 
 # Robot configuration - Define degrees of freedom for each component

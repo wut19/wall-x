@@ -571,7 +571,7 @@ def get_data_configs(config):
 
 
 class TestDataset(PreprocessedDataset):
-    def __init__(self, dataset, config, dataload_config, seed=42):
+    def __init__(self, dataset, data_meta, config, dataload_config, seed=42):
         super().__init__(
             dataset,
             config,
@@ -581,7 +581,7 @@ class TestDataset(PreprocessedDataset):
             world_size=1,
             test_only=True,
         )
-
+        self.data_meta = data_meta
     def get_dataloader(self):
         """
         Get distributed evaluation dataloader (no shuffling for consistent evaluation)
@@ -591,7 +591,7 @@ class TestDataset(PreprocessedDataset):
             self,
             batch_size=1,
             collate_fn=DataCollator(
-                self.config, self.dataload_config, self.hf_dataset.meta.stats
+                self.config, self.dataload_config, self.data_meta.stats
             ),
         )
 
@@ -600,6 +600,7 @@ class TestDataset(PreprocessedDataset):
 
 def load_test_dataset(
     config,
+    data_meta,
     lerobot_config,
     seed=42,
     episode=0,
@@ -641,6 +642,6 @@ def load_test_dataset(
     print(f"Number of episodes selected: {dataset.num_episodes}")
     print(f"Number of frames selected: {dataset.num_frames}")
 
-    dataset = TestDataset(dataset, config, dataload_config, seed=seed)
+    dataset = TestDataset(dataset, data_meta, config, dataload_config, seed=seed)
 
     return dataset

@@ -268,3 +268,7 @@ NOTES.md
 .env
 .env.local
 .env.*.local
+
+# wallx checkoints
+wall-oss-flow/
+checkpoints_
