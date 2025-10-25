@@ -30,7 +30,7 @@ padding_side: left
 epoch_save_interval: 10
 
 # Training optimization settings
-FSDP2: True
+FSDP2: False
 torch_compile: False
 
 # Robot configuration - Define degrees of freedom for each component

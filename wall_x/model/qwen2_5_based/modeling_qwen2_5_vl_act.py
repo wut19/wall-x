@@ -239,8 +239,9 @@ class Qwen2_5_VLDecoderLayer_with_MoE(nn.Module):
                 into the model
         """
         residual = hidden_states
+        hidden_states = hidden_states.to(self.input_layernorm.weight.dtype)
         hidden_states = self.input_layernorm(hidden_states)
-
+        hidden_states = hidden_states.to(self.self_attn.q_proj.weight.dtype)
         # Self Attention
         hidden_states, self_attn_weights, present_key_value = self.self_attn(
             hidden_states=hidden_states,
@@ -256,12 +257,15 @@ class Qwen2_5_VLDecoderLayer_with_MoE(nn.Module):
 
         # Fully Connected
         residual = hidden_states
+        hidden_states = hidden_states.to(self.post_attention_layernorm.weight.dtype)
         hidden_states = self.post_attention_layernorm(hidden_states)
         if self.mlp is None:  # using moe mlp
+            hidden_states = hidden_states.to(self.moe.experts[0].down_proj.weight.dtype)
             hidden_states = self.moe(
                 hidden_states, token_types, start_indices, end_indices
             )
         else:
+            hidden_states = hidden_states.to(self.mlp.down_proj.weight.dtype)
             hidden_states = self.mlp(hidden_states)
 
         hidden_states = residual + hidden_states
@@ -940,6 +944,21 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
         # Initialize weights and apply final processing
         self.post_init()
 
+    def to_bfloat16_for_selected_params(self):
+        self.to(dtype=torch.bfloat16)
+
+        params_to_keep_float32 = []
+
+        for name, param in self.named_parameters():
+            if "input_layernorm" in name or "post_attention_layernorm" in name or "model.norm" in name:
+                params_to_keep_float32.append(name)
+            if "action_preprocessor" in name:
+                params_to_keep_float32.append(name)
+        
+        for name, param in self.named_parameters():
+            if name in params_to_keep_float32:
+                param.data = param.data.to(torch.float32)
+
     def define_action_token_id(self):
         """
         Define action token IDs based on tokenizer configuration.
@@ -1574,7 +1593,7 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
         if action_chunk is not None:
             action_mask = input_ids == self.action_token_id_set["action_token_id"]
             if action_mask.any():
-                action_hidden_states = hidden_states[action_mask]
+                action_hidden_states = hidden_states[action_mask].to(torch.float32)
                 flow = flow.reshape(-1, flow.shape[-1])
                 _flow_loss = self.action_preprocessor.flow_loss(
                     action_hidden_states, flow, dof_mask
@@ -1798,6 +1817,7 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
                 proprioception_mask = (
                     input_ids == self.action_token_id_set["propri_token_id"]
                 )
+                proprio_embed = proprio_embed.to(torch.bfloat16)
                 inputs_embeds[proprioception_mask] = proprio_embed.reshape(
                     -1, inputs_embeds.shape[-1]
                 )
@@ -1846,7 +1866,7 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
 
         # Prepare action chunk data if provided
         if action_chunk is not None:
-            action_chunk = action_chunk.to(inputs_embeds.device).to(inputs_embeds.dtype)
+            action_chunk = action_chunk.to(inputs_embeds.device).to(torch.float32)
 
         output = {}
 
@@ -1978,10 +1998,10 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
             # Initialize with random noise
             noisy_action = torch.randn(
                 size=(batch_size, pred_horizon, action_dim),
-                dtype=inputs_embeds.dtype,
+                dtype=torch.float32,
                 device=inputs_embeds.device,
             )
-            dof_mask = dof_mask.to(inputs_embeds.device).to(inputs_embeds.dtype)
+            dof_mask = dof_mask.to(inputs_embeds.device).to(torch.float32)
 
             # Calculate token distribution across MoE expert groups
             group_size = torch.zeros(
@@ -2014,8 +2034,11 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
                     timestep=timestep, noisy_action=noisy_action, dof_mask=dof_mask
                 )
                 action_embed = action_embed.reshape(-1, inputs_embeds.shape[-1])
+                
+                # Ensure action_embed has the correct dtype and device before assignment
+                action_embed = action_embed.to(dtype=inputs_embeds.dtype, device=inputs_embeds.device)
 
-                # Create temporary copy of embeddings for thread safety
+                # Create temporary copy of embeddings (clone preserves dtype)
                 temp_inputs_embeds = inputs_embeds.clone()
                 temp_inputs_embeds[action_mask] = action_embed
 
@@ -2038,7 +2061,7 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
                 # Extract action predictions from hidden states
                 hidden_states = transformer_outputs.last_hidden_state
                 action_mask = input_ids == self.action_token_id_set["action_token_id"]
-                action_hidden_states = hidden_states[action_mask]
+                action_hidden_states = hidden_states[action_mask].to(torch.float32)
                 pred = self.action_preprocessor.action_proj_back(action_hidden_states)
                 return pred.reshape(batch_size, pred_horizon, action_dim)
 
@@ -2046,28 +2069,28 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
             times = torch.linspace(
                 0,
                 1,
-                num_inference_timesteps,
+                num_inference_timesteps+1,
                 device=inputs_embeds.device,
-                dtype=inputs_embeds.dtype,
+                dtype=torch.float32,
             )
             action_trajectory = odeint(step, noisy_action, times, method="euler")
 
             # Extract final predicted action and unnormalize
             predict_action = action_trajectory[-1]
-            predict_action = (
-                self.action_preprocessor.normalizer_action.unnormalize_data(
-                    predict_action, dataset_names
-                )
-            )
+            # predict_action = (
+            #     self.action_preprocessor.normalizer_action.unnormalize_data(
+            #         predict_action, dataset_names
+            #     )
+            # )
             output["predict_action"] = predict_action
 
             # Process ground truth actions if available
-            if action_chunk is not None:
-                output["gt_action"] = (
-                    self.action_preprocessor.normalizer_action.unnormalize_data(
-                        action_chunk, dataset_names
-                    )
-                )
+            # if action_chunk is not None:
+            #     output["gt_action"] = (
+            #         self.action_preprocessor.normalizer_action.unnormalize_data(
+            #             action_chunk, dataset_names
+            #         )
+            #     )
 
         return output
 
