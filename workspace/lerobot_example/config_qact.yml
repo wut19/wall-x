@@ -2,13 +2,13 @@
 # This configuration supports multi-modal learning with vision, language, and action data
 
 # Model and paths configuration
-log_name: "robotic_training"
+log_name: "lerobot_training_fast"
 log_project: "vla_training"
 model_type: wall-oss
-pretrained_wallx_path: "/x2robot_v2/geoffrey/wall-x/wall-oss-flow"  # Must set
-save_path: "/x2robot_v2/geoffrey/wall-x/workspace/checkpoints"                # Must set
-use_fast_tokenizer: False                       # True: train FAST, False: train Flow
-action_tokenizer_path: None         # Must set if use_fast_tokenizer is true
+pretrained_wallx_path: "/x2robot_v2/geoffrey/wall-x/wall-oss-fast"  # Must set
+save_path: "/x2robot_v2/geoffrey/wall-x/workspace/fast_checkpoints"                # Must set
+use_fast_tokenizer: True                       # True: train FAST, False: train Flow
+action_tokenizer_path:/x2robot_v2/geoffrey/fast         # Must set if use_fast_tokenizer is true
 
 # Torch Profile
 profile: False

@@ -271,4 +271,5 @@ NOTES.md
 
 # wallx checkoints
 wall-oss-flow/
-checkpoints_
+wall-oss-fast/
+*checkpoints/
