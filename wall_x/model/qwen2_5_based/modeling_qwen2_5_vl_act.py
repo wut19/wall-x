@@ -2077,20 +2077,20 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
 
             # Extract final predicted action and unnormalize
             predict_action = action_trajectory[-1]
-            # predict_action = (
-            #     self.action_preprocessor.normalizer_action.unnormalize_data(
-            #         predict_action, dataset_names
-            #     )
-            # )
+            predict_action = (
+                self.action_preprocessor.normalizer_action.unnormalize_data(
+                    predict_action, dataset_names
+                )
+            )
             output["predict_action"] = predict_action
 
             # Process ground truth actions if available
-            # if action_chunk is not None:
-            #     output["gt_action"] = (
-            #         self.action_preprocessor.normalizer_action.unnormalize_data(
-            #             action_chunk, dataset_names
-            #         )
-            #     )
+            if action_chunk is not None:
+                output["gt_action"] = (
+                    self.action_preprocessor.normalizer_action.unnormalize_data(
+                        action_chunk, dataset_names
+                    )
+                )
 
         return output
 

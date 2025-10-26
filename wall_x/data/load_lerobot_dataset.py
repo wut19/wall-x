@@ -597,7 +597,7 @@ class TestDataset(PreprocessedDataset):
             world_size=1,
             test_only=True,
         )
-        self.data_meta = data_meta
+
     def get_dataloader(self):
         """
         Get distributed evaluation dataloader (no shuffling for consistent evaluation)
@@ -616,7 +616,6 @@ class TestDataset(PreprocessedDataset):
 
 def load_test_dataset(
     config,
-    data_meta,
     lerobot_config,
     seed=42,
     episode=0,
