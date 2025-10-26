@@ -29,26 +29,32 @@ padding_side: left
 epoch_save_interval: 10
 
 # Training optimization settings
-FSDP2: False
+FSDP2: True
 torch_compile: False
 
 # Robot configuration - Define degrees of freedom for each component
 dof_config:
-  shoulder_pan.pos: 1
-  shoulder_lift.pos: 1
-  elbow_flex.pos: 1
-  wrist_flex.pos: 1
-  wrist_roll.pos: 1
-  gripper.pos: 1
+  follow_left_ee_cartesian_pos: 3      # Left end-effector Cartesian position
+  follow_left_ee_rotation: 3           # Left end-effector rotation
+  follow_left_gripper: 1               # Left gripper control
+  follow_right_ee_cartesian_pos: 3     # Right end-effector Cartesian position
+  follow_right_ee_rotation: 3          # Right end-effector rotation
+  follow_right_gripper: 1              # Right gripper control
+  head_actions: 2                      # Head/camera movement
+  height: 1                            # Mobile base height control
+  car_pose: 3                          # Mobile base pose (x, y, theta)
 
 # Agent proprioception configuration (typically matches DOF config)
 agent_pos_config:
-  shoulder_pan.pos: 1
-  shoulder_lift.pos: 1
-  elbow_flex.pos: 1
-  wrist_flex.pos: 1
-  wrist_roll.pos: 1
-  gripper.pos: 1
+  follow_left_ee_cartesian_pos: 3
+  follow_left_ee_rotation: 3
+  follow_left_gripper: 1
+  follow_right_ee_cartesian_pos: 3
+  follow_right_ee_rotation: 3
+  follow_right_gripper: 1
+  head_actions: 2
+  height: 1
+  car_pose: 3
 
 # # Checkpoint resuming configuration
 # resume:
@@ -96,7 +102,7 @@ data:
 
   # LeRobot dataset configuration
   lerobot_config:
-    repo_id: "20250926/pickandplace"
+    repo_id: "lerobot/aloha_mobile_cabinet"
     root: null
     episodes: null
     image_transforms: null
@@ -112,20 +118,26 @@ data:
 
   # Action keys for observation and prediction
   obs_action_keys:
-    - shoulder_pan.pos
-    - shoulder_lift.pos
-    - elbow_flex.pos
-    - wrist_flex.pos
-    - wrist_roll.pos
-    - gripper.pos
+    - follow_left_ee_cartesian_pos
+    - follow_left_ee_rotation
+    - follow_left_gripper
+    - follow_right_ee_cartesian_pos
+    - follow_right_ee_rotation
+    - follow_right_gripper
+    - head_actions
+    - height
+    - car_pose
 
   predict_action_keys:
-    - shoulder_pan.pos
-    - shoulder_lift.pos
-    - elbow_flex.pos
-    - wrist_flex.pos
-    - wrist_roll.pos
-    - gripper.pos
+    - follow_left_ee_cartesian_pos
+    - follow_left_ee_rotation
+    - follow_left_gripper
+    - follow_right_ee_cartesian_pos
+    - follow_right_ee_rotation
+    - follow_right_gripper
+    - head_actions
+    - height
+    - car_pose
 
   # Image resolution configuration for different camera views
   resolution:
