@@ -1513,6 +1513,7 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
         )
 
         hidden_states = outputs[0]
+        hidden_states = hidden_states.to(self.lm_head.weight.dtype)
         logits = self.lm_head(hidden_states)
 
         # Initialize loss computation variables
