@@ -28,9 +28,13 @@ if __name__ == "__main__":
     pred_horizon = args.pred_horizon
 
     # get train config
-    model_path = "/x2robot_v2/geoffrey/wall-x/finetuned_model"
-    action_tokenizer_path = "/x2robot_v2/geoffrey/wall-x/fast"
-    save_dir = "/x2robot_v2/geoffrey/wall-x/workspace/openloot_plot"
+    # model_path = "/x2robot_v2/geoffrey/wall-x/finetuned_fast"
+    # action_tokenizer_path = "/x2robot_v2/geoffrey/wall-x/fast"
+    # save_dir = "/x2robot_v2/geoffrey/wall-x/workspace/openloot_plot_fast"
+    # path = "/x2robot_v2/geoffrey/wall-x/workspace/lerobot_example/config_qact.yml"
+    model_path = "/x2robot_v2/geoffrey/wall-x/finetuned_flow"
+    action_tokenizer_path = None
+    save_dir = "/x2robot_v2/geoffrey/wall-x/workspace/openloot_plot_flow"
     path = "/x2robot_v2/geoffrey/wall-x/workspace/lerobot_example/config_qact.yml"
     config = load_config(path)
 
@@ -45,7 +49,7 @@ if __name__ == "__main__":
     # get test dataloader
     dataload_config = get_data_configs(config["data"])
     lerobot_config = dataload_config.get("lerobot_config", {})
-    dataset = load_test_dataset(config, lerobot_config, seed=42)
+    dataset = load_test_dataset(config, lerobot_config, seed=42, episode=430)
     dataloader = dataset.get_dataloader()
 
     total_frames = len(dataloader)
