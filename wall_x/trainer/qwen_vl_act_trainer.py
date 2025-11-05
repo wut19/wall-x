@@ -587,7 +587,10 @@ class QwenVlAct_Trainer:
                 model, self.config["pretrained_wallx_path"]
             )
             model.resize_token_embeddings(len(self.processor.tokenizer))
-            model = model.to(torch.bfloat16)
+            if self.config.get("FSDP2", False):
+                model = model.to(torch.bfloat16)
+            else:
+                model.to_bfloat16_for_selected_params()
         else:
             raise NotImplementedError(f"Invalid model type: {model_type}")
 
