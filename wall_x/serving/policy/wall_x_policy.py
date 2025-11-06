@@ -58,10 +58,7 @@ class WallXPolicy(BasePolicy):
         self.model.eval()
         self.model = self.model.to(device)
 
-        if train_config.get("FSDP2", False):
-            self.model = self.model.to(torch.bfloat16)
-        else:
-            self.model.to_bfloat16_for_selected_params()
+        self.model.to_bfloat16_for_selected_params()
 
         # hard code the action dim to 20 for align to wall-x configuration
         self.fixed_action_dim = 20

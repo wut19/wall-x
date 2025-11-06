@@ -40,10 +40,7 @@ if __name__ == "__main__":
     )
     model.eval()
     model = model.to("cuda")
-    if config.get("FSDP2", False):
-        model = model.to(torch.bfloat16)
-    else:
-        model.to_bfloat16_for_selected_params()
+    model.to_bfloat16_for_selected_params()
 
     # get test dataloader
     dataload_config = get_data_configs(config["data"])
