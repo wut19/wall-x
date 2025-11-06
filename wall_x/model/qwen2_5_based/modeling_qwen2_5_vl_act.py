@@ -2046,7 +2046,7 @@ class Qwen2_5_VLMoEForAction(Qwen2_5_VLForConditionalGeneration):
             times = torch.linspace(
                 0,
                 1,
-                num_inference_timesteps+1,
+                num_inference_timesteps + 1,
                 device=inputs_embeds.device,
                 dtype=inputs_embeds.dtype,
             )
