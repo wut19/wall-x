@@ -17,11 +17,11 @@ Example:
 
 Customized example:
 ```shell # port 33001-34000
-python scripts/policy_server.py \
-     --host=localhost \
-     --port=33019 \
-     --fps=30 \
-     --inference_latency=0.033 \
+python scripts/wallx_server.py \
+     --host=0.0.0.0 \
+     --port=10808 \
+     --fps=10 \
+     --inference_latency=0.1 \
      --obs_queue_timeout=1
 ```
 """
@@ -34,23 +34,20 @@ from concurrent import futures
 from dataclasses import asdict
 from pprint import pformat
 from queue import Empty, Queue
+from lerobot.configs.types import FeatureType, PolicyFeature
 
 import draccus
 import grpc
 import torch
 from PIL import Image
 
-from lerobot.policies.factory import get_policy_class
 from lerobot.scripts.server.configs import PolicyServerConfig
-from lerobot.scripts.server.constants import SUPPORTED_POLICIES
 from lerobot.scripts.server.helpers import (
     FPSTracker,
     Observation,
-    RemotePolicyConfig,
     TimedAction,
     TimedObservation,
     get_logger,
-    observations_similar,
     raw_observation_to_observation,
 )
 from lerobot.transport import (
@@ -58,120 +55,15 @@ from lerobot.transport import (
     services_pb2_grpc,  # type: ignore
 )
 from lerobot.transport.utils import receive_bytes_in_chunks
-from qwen_vl_utils.vision_process import smart_resize, MIN_PIXELS, MAX_PIXELS, IMAGE_FACTOR
+from qwen_vl_utils.vision_process import smart_resize
 from wall_x.data.config import X2RDataProcessingConfig
-from wall_x.data.utils import get_wallx_normal_text, process_grounding_points, replace_action_token, preprocesser_call
+from wall_x.data.utils import get_wallx_normal_text, process_grounding_points, replace_action_token, preprocesser_call, KEY_MAPPINGS, load_norm_stats
 
-import os
 import yaml
 import torch
-import matplotlib.pyplot as plt
 from wall_x.model.qwen2_5_based.modeling_qwen2_5_vl_act import Qwen2_5_VLMoEForAction
-from wall_x.data.load_lerobot_dataset import load_test_dataset, get_data_configs
-from safetensors.torch import load_file
-import torch.distributed.checkpoint as dcp
+from wall_x.data.load_lerobot_dataset import get_data_configs
 from transformers import AutoProcessor
-from lerobot.datasets.lerobot_dataset import LeRobotDataset, LeRobotDatasetMetadata
-
-
-# Camera key mappings for different datasets
-CAMERA_KEY_MAPPINGS = {
-    "lerobot/aloha_mobile_cabinet": {
-        "observation.images.cam_high": "face_view",
-        "observation.images.cam_left_wrist": "left_wrist_view",
-        "observation.images.cam_right_wrist": "right_wrist_view",
-    },
-    "20250926/pickandplace": {
-        "observation.images.top": "face_view",
-        "observation.images.side": "wall_view",
-    },
-}
-
-
-class VQAWrapper(object):
-    def __init__(self, model_path: str, is_checkpoint: bool = False, pretrained_model_path: str = None):
-        """
-        Initialize VQA wrapper.
-        
-        Args:
-            model_path (str): Path to model directory or checkpoint directory
-            is_checkpoint (bool): If True, model_path is a checkpoint directory from accelerator.save_state
-                                If False, model_path is a pretrained model directory
-            pretrained_model_path (str): Required when is_checkpoint=True. Path to original pretrained model
-                                       for loading processor and model architecture
-        """
-        self.device = self._setup_device()
-        self.is_checkpoint = is_checkpoint
-        self.pretrained_model_path = pretrained_model_path
-        
-        if is_checkpoint:
-            if pretrained_model_path is None:
-                raise ValueError("pretrained_model_path is required when loading from checkpoint")
-            # For checkpoint loading, we need to load model weights from checkpoint 
-            # and use the processor from the model
-            self.model = self._load_model_from_checkpoint(model_path, pretrained_model_path)
-            self.processor = self.model.processor
-        else:
-            # Standard pretrained model loading
-            self.processor = self._load_processor(model_path)
-            self.model = self._load_model(model_path)
-
-    def _setup_device(self) -> str:
-        if torch.cuda.is_available():
-            return "cuda"
-        else:
-            return "cpu"
-
-    def _load_processor(self, model_path: str) -> AutoProcessor:
-        return AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
-
-    def _load_model(self, model_path: str) -> Qwen2_5_VLMoEForAction:
-        model = Qwen2_5_VLMoEForAction.from_pretrained(model_path)
-        if self.device == "cuda":
-            model = model.to(self.device, dtype=torch.bfloat16)
-        else:
-            model.to(self.device)
-        model.eval()
-        return model
-    
-    def _load_model_from_checkpoint(self, checkpoint_path: str, pretrained_model_path: str) -> Qwen2_5_VLMoEForAction:
-        """
-        Load model from FSDP2 checkpoint directory created by accelerator.save_state.
-        
-        Args:
-            checkpoint_path (str): Path to checkpoint directory (e.g., "/path/to/save_path/epoch_79")
-            pretrained_model_path (str): Path to original pretrained model for architecture
-        
-        Returns:
-            Qwen2_5_VLMoEForAction: Loaded model
-        """
-        print(f"Loading model from FSDP2 checkpoint: {checkpoint_path}")
-        
-        # First, initialize the model architecture from pretrained path
-        model = Qwen2_5_VLMoEForAction.from_pretrained(pretrained_model_path)
-        model_weights_path = os.path.join(checkpoint_path, "model.safetensors")
-        if os.path.exists(model_weights_path):
-            print(f"Loading fallback weights from: {model_weights_path}")
-            state_dict = load_file(model_weights_path, device="cpu")
-            
-            # Handle potential module prefix issues
-            new_state_dict = {}
-            for key, value in state_dict.items():
-                if key.startswith("module."):
-                    new_key = key[7:]  # Remove 'module.' prefix
-                elif key.startswith("_orig_mod."):
-                    new_key = key[10:]  # Remove '_orig_mod.' prefix
-                else:
-                    new_key = key
-                new_state_dict[new_key] = value
-            
-            model.load_state_dict(new_state_dict, strict=False)
-
-        model.to_bfloat16_for_selected_params()
-        model.to(self.device)
-        model.eval()
-        
-        return model
 
 
 def load_config(config_path):
@@ -204,21 +96,20 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
         # Hack: We fix the attributes here only for wallx
         self.device = 'cuda'
         self.policy_type = 'wallx'
-        self.model_path = "/x2robot_v2/geoffrey/wall-x/workspace/checkpoints/99"
-        self.pretrained_path = "/x2robot_v2/geoffrey/wall-x/wall-oss-flow"
-        self.config_path = "/x2robot_v2/geoffrey/wall-x/workspace/lerobot_example/config_qact.yml"
+        self.model_path = "/home/ryan/wall-x/finetuned_flow" # "/home/ryan/wall-x/finetuned_fast"
+        self.action_tokenizer_path = None # "/home/ryan/wall-x/fast"
+        self.config_path = "/home/ryan/wall-x/workspace/lerobot_example/config_qact.yml"
         self.task_instruction = "Pick the white duck and place it in the pink cup"
         self.lerobot_features = None
         self.actions_per_chunk = 32
         self.policy = None
+        self.norm_stats = None
         
         # WallX preprocessing configuration
         self.data_config = None
         self.cam_key_mapping = None
         self.repo_id = None
-        self.frame_index = 0  # Track frame index for observations
-        self.min_stat = None
-        self.delta_stat = None
+        self.frame_index = None  # Track frame index for observations
         self.processor = None
         self.max_length = 768
         self.use_fast_tokenizer = False
@@ -230,7 +121,11 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
 
     @property
     def policy_image_features(self):
-        return self.policy.config.image_features
+        image_features = {
+            "observation.images.top": PolicyFeature(type=FeatureType.VISUAL, shape=[3, 480, 640]),
+            "observation.images.side": PolicyFeature(type=FeatureType.VISUAL, shape=[3, 480, 640]),
+        }
+        return image_features
 
     def _reset_server(self) -> None:
         """Flushes server state when new client connects."""
@@ -272,47 +167,40 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
         )
 
         # self.lerobot_features = policy_specs.lerobot_features
-
         start = time.perf_counter()
-        # load model from checkpoint
-        wrapper = VQAWrapper(model_path=self.model_path, is_checkpoint=True, pretrained_model_path=self.pretrained_path)
-        self.policy = wrapper.model
-        self.policy.to(self.device)
-        # load stats
+
         config = load_config(self.config_path)
         dataload_config = get_data_configs(config["data"])
         lerobot_config = dataload_config.get("lerobot_config", {})
-        self.repo_id = lerobot_config.get("repo_id", "lerobot/aloha_mobile_cabinet")
+        self.repo_id = lerobot_config.get("repo_id", None)
+        assert self.repo_id is not None, "repo id is required"
 
-        dataset_fps = 30
+        norm_stats_path = config.get("norm_stats_path", None)
+        stats = load_norm_stats(norm_stats_path, self.repo_id)
+        self.action_min_stat = stats["action"].min.to(self.device)
+        self.action_delta = stats["action"].delta.to(self.device)
+        self.state_min_stat = stats["state"].min.to(self.device)
+        self.state_delta = stats["state"].delta.to(self.device)
 
-        delta_timestamps = {
-            # action chunk
-            "action": [
-                t / dataset_fps
-                for t in range(dataload_config.get("action_horizon", 32) - 1)
-            ],
-        }
+        # load model from checkpoint
+        self.policy = Qwen2_5_VLMoEForAction.from_pretrained(
+            self.model_path, train_config=config, action_tokenizer_path=self.action_tokenizer_path
+        )
+        self.policy.eval()
+        self.policy = self.policy.to(self.device)
+        self.policy.to_bfloat16_for_selected_params()
 
-        train_dataset = LeRobotDataset(
-                self.repo_id,
-                delta_timestamps=delta_timestamps,
-                video_backend="pyav",
-            )
-
-        min_stat = train_dataset.meta.stats["action"]["min"]
-        max_stat = train_dataset.meta.stats["action"]["max"]
-        delta_stat = max_stat - min_stat
-        print(f"min_stat: {min_stat}, max_stat: {max_stat}, delta_stat: {delta_stat}")
-        self.min_stat = torch.tensor(min_stat).unsqueeze(0).to(self.device)
-        self.delta_stat = torch.tensor(delta_stat).unsqueeze(0).to(self.device)
+        self.predict_mode = "fast" if config.get("use_fast_tokenizer", False) else "diffusion"
+        self.action_dim = 20 if self.predict_mode == "diffusion" else 6
         
         end = time.perf_counter()
 
         self.logger.info(f"Time taken to put policy on {self.device}: {end - start:.4f} seconds")
         
         # Initialize WallX preprocessing configuration
-        self.cam_key_mapping = CAMERA_KEY_MAPPINGS.get(self.repo_id, {})
+        self.cam_key_mapping = KEY_MAPPINGS.get(self.repo_id, {})["camera"]
+        self.state_key_mapping = KEY_MAPPINGS.get(self.repo_id, {})["state"]
+        self.action_key_mapping = KEY_MAPPINGS.get(self.repo_id, {})["action"]
         
         self.data_config = X2RDataProcessingConfig().update(
             train_test_split=dataload_config["train_test_split"],
@@ -324,15 +212,15 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
         )
         
         # Load processor
-        self.processor = wrapper.processor
+        self.processor = AutoProcessor.from_pretrained(self.model_path, use_fast=True)
+        self.processor.tokenizer.padding_side = "left"
         self.max_length = dataload_config.get("max_length", 768)
         self.use_fast_tokenizer = config.get("use_fast_tokenizer", False)
         
         # Load action tokenizer if using fast tokenizer
         if self.use_fast_tokenizer:
-            action_tokenizer_path = config.get("action_tokenizer_path")
+            action_tokenizer_path = self.action_tokenizer_path
             if action_tokenizer_path:
-                from transformers import AutoProcessor
                 self.train_action_tokenizer = AutoProcessor.from_pretrained(
                     action_tokenizer_path, trust_remote_code=True
                 )
@@ -341,7 +229,7 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
         self.logger.info(f"Resolution config: {self.data_config.resolution}")
         self.logger.info(f"Task instruction: {self.task_instruction}")
         self.logger.info(f"Max length: {self.max_length}")
-
+        
         return services_pb2.Empty()
 
     def SendObservations(self, request_iterator, context):  # noqa: N802
@@ -360,6 +248,7 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
         self.logger.debug(f"Received observation #{timed_observation.get_timestep()}")
 
         obs_timestep = timed_observation.get_timestep()
+        self.frame_index = obs_timestep
         obs_timestamp = timed_observation.get_timestamp()
 
         # Calculate FPS metrics
@@ -435,7 +324,9 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
             return services_pb2.Empty()
 
         except Exception as e:
+            import traceback
             self.logger.error(f"Error in StreamActions: {e}")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
 
             return services_pb2.Empty()
 
@@ -448,11 +339,11 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
             self.logger.debug(f"Skipping observation #{obs.get_timestep()} - Timestep predicted already!")
             return False
 
-        elif observations_similar(obs, previous_obs, lerobot_features=self.lerobot_features):
-            self.logger.debug(
-                f"Skipping observation #{obs.get_timestep()} - Observation too similar to last obs predicted!"
-            )
-            return False
+        # elif observations_similar(obs, previous_obs, lerobot_features=self.lerobot_features):
+        #     self.logger.debug(
+        #         f"Skipping observation #{obs.get_timestep()} - Observation too similar to last obs predicted!"
+        #     )
+        #     return False
 
         else:
             return True
@@ -592,7 +483,7 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
         # 2. Text preprocessing - generate instruction text
         if self.task_instruction is not None and orig_height is not None:
             instruction_info = {"instruction": self.task_instruction}
-            action_chunk_size = self.actions_per_chunk - 1  # 32
+            action_chunk_size = self.actions_per_chunk  # 33 - 1
             
             # Generate the complete text with instruction and action tokens
             complete_text, generate_subtask = get_wallx_normal_text(
@@ -626,7 +517,6 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
         
         # 4. Track frame index
         observation["frame_index"] = self.frame_index
-        self.frame_index += 1
         
         # 5. Apply DataCollator-style processing (normalization, tokenization, etc.)
         observation = self._apply_datacollator_processing(observation)
@@ -635,11 +525,8 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
     
     def _normalize(self, data: torch.Tensor, min_stat: torch.Tensor, delta: torch.Tensor) -> torch.Tensor:
         """Normalize data to [-1, 1] range"""
-        return (data - min_stat) / delta * 2.0 - 1.0
+        return torch.clamp((data - min_stat) / delta * 2.0 - 1.0, -1, 1)
 
-    def _unnormalize(self, data: torch.Tensor, min_stat: torch.Tensor, delta: torch.Tensor) -> torch.Tensor:
-        """Unnormalize data from [-1, 1] range"""
-        return (data + 1.0) / 2.0 * delta + min_stat
     
     def _apply_datacollator_processing(self, observation: Observation) -> Observation:
         """
@@ -661,10 +548,6 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
         """
         additional_inputs = {}
         
-        # Convert min_stat and delta_stat to tensors
-        min_stat = torch.tensor(self.min_stat, dtype=torch.float32)
-        delta_stat = torch.tensor(self.delta_stat, dtype=torch.float32)
-        
         # 1. Process agent position (proprioception)
         if "agent_pos" in observation:
             agent_pos = observation["agent_pos"]
@@ -680,7 +563,7 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
             agent_pos = torch.nan_to_num(agent_pos, nan=0.0)
             
             # Normalize
-            agent_pos = self._normalize(agent_pos, min_stat, delta_stat)
+            agent_pos = self._normalize(agent_pos, self.state_min_stat, self.state_delta)
             
             # Pad to 20 dimensions if needed
             if agent_pos.shape[-1] != 20:
@@ -688,26 +571,30 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
                 agent_pos = torch.cat(
                     [
                         agent_pos,
-                        torch.zeros(agent_pos.shape[0], agent_pos.shape[1], padding_size)
+                        torch.zeros(agent_pos.shape[0], agent_pos.shape[1], padding_size, device=agent_pos.device)
                     ],
                     dim=-1
                 )
                 agent_pos_mask = torch.cat(
                     [
                         agent_pos_mask,
-                        torch.zeros(agent_pos_mask.shape[0], agent_pos_mask.shape[1], padding_size)
+                        torch.zeros(agent_pos_mask.shape[0], agent_pos_mask.shape[1], padding_size, device=agent_pos_mask.device)
                     ],
                     dim=-1
                 )
             
             additional_inputs["proprioception"] = agent_pos
             additional_inputs["agent_pos_mask"] = agent_pos_mask
+            self.logger.debug(f"Agent position shape: {agent_pos.shape}")
+            self.logger.debug(f"Agent position mask shape: {agent_pos_mask.shape}")
         
         # 2. Create dummy action chunk for inference (will be predicted by model)
         # Create dummy normalized action with proper shape [1, 1, action_dim]
-        action_dim = len(min_stat)
-        action = torch.zeros(1, 1, action_dim, dtype=torch.float32)
-        dof_mask = torch.ones(1, 1, action_dim, dtype=torch.float32)
+        action_dim = 6
+        action = torch.zeros(1, self.actions_per_chunk, action_dim, dtype=torch.float32, device=self.device)
+        dof_mask = torch.ones(1, self.actions_per_chunk, action_dim, dtype=torch.float32, device=self.device)
+
+        action = self._normalize(action, self.action_min_stat, self.action_delta)
         
         # Pad to 20 dimensions if needed
         if action.shape[-1] != 20:
@@ -715,20 +602,22 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
             action = torch.cat(
                 [
                     action,
-                    torch.zeros(action.shape[0], action.shape[1], padding_size)
+                    torch.zeros(action.shape[0], action.shape[1], padding_size, device=action.device)
                 ],
                 dim=-1
             )
             dof_mask = torch.cat(
                 [
                     dof_mask,
-                    torch.zeros(dof_mask.shape[0], dof_mask.shape[1], padding_size)
+                    torch.zeros(dof_mask.shape[0], dof_mask.shape[1], padding_size, device=dof_mask.device)
                 ],
                 dim=-1
             )
         
         additional_inputs["action_chunk"] = action
         additional_inputs["dof_mask"] = dof_mask
+        self.logger.debug(f"Action chunk shape: {action.shape}")
+        self.logger.debug(f"DOF mask shape: {dof_mask.shape}")
         
         # 3. Get image inputs and text
         if "image_inputs" in observation:
@@ -745,7 +634,7 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
             additional_inputs["text"],
             additional_inputs["action_chunk"],
             self.train_action_tokenizer if self.use_fast_tokenizer else None,
-            ["x2_normal"] * len(additional_inputs["text"]),
+            [self.repo_id] * len(additional_inputs["text"]),
             additional_inputs["dof_mask"],
         )
         
@@ -769,27 +658,30 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
         inputs.update(additional_inputs)
         
         # 8. Add dataset name
-        inputs["dataset_names"] = ["x2_normal"]
+        inputs["dataset_names"] = [self.repo_id] * inputs[
+            "action_chunk"
+        ].shape[0]
         
         return inputs
 
     def _get_action_chunk(self, observation: dict[str, torch.Tensor]) -> torch.Tensor:
         """Get an action chunk from the policy. The chunk contains only"""
-        observation = observation.to(self.device)
+        observation = {k: v.to(self.device) if isinstance(v, torch.Tensor) else v 
+               for k, v in observation.items()}
         with torch.no_grad():
-            chunk = self.policy(
+            outputs = self.policy(
                     **observation,
-                    action_dim=20,
+                    action_dim=self.action_dim,
                     pred_horizon=self.actions_per_chunk,
                     mode="predict",
-                    predict_mode="diffusion",
+                    predict_mode=self.predict_mode,
+                    re_generate=True,
             )
+        chunk = outputs["predict_action"].detach().cpu()
         if chunk.ndim != 3:
             chunk = chunk.unsqueeze(0)  # adding batch dimension, now shape is (B, chunk_size, action_dim)
 
         chunk = chunk[:, : self.actions_per_chunk, :6]
-        # unormalize action chunk
-        chunk = self._unnormalize(chunk, self.min_stat, self.delta_stat)
         return chunk
 
     def _predict_action_chunk(self, observation_t: TimedObservation) -> list[TimedAction]:
@@ -802,6 +694,7 @@ class PolicyServer(services_pb2_grpc.AsyncInferenceServicer):
         preprocessing_time = time.perf_counter() - start_time
 
         self.last_processed_obs: TimedObservation = observation_t
+        self.logger.debug("Finishing observation preparation stage!!!!")
 
         """2. Get action chunk"""
         start_time = time.perf_counter()
