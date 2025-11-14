@@ -1,144 +1,190 @@
-# Wall-X
+# WALL-OSS
 
 <div align="left">
 
-<!-- Links -->
-<a href="https://huggingface.co/x-square-robot">
-  <img src="https://img.shields.io/badge/Hugging%20Face-x--square--robot-FFB000?style=for-the-badge&logo=huggingface&logoColor=000" alt="Hugging Face">
-</a>
-<a href="https://x2robot.com/en/research/68bc2cde8497d7f238dde690">
-  <img src="https://img.shields.io/badge/Project-1E90FF?style=for-the-badge&logo=google-chrome&logoColor=fff" alt="Project Page">
-</a>
+<p align="center">
+    <img src="assets/logo.png" width="600"/>
+<p>
 
-<!-- Tech stack -->
-<br/>
-<img src="https://img.shields.io/badge/Python-3.10-3776AB?style=flat&logo=python&logoColor=fff" alt="Python 3.10">
-<img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=flat&logo=pytorch&logoColor=fff" alt="PyTorch">
-<img src="https://img.shields.io/badge/FlashAttention-0F9D58?style=flat&logo=nvidia&logoColor=fff" alt="FlashAttention">
-<img src="https://img.shields.io/badge/LeRobot-222?style=flat&logo=huggingface&logoColor=ffd21e" alt="LeRobot">
-<img src="https://img.shields.io/badge/CUDA-12.x-76B900?style=flat&logo=nvidia&logoColor=fff" alt="CUDA">
-<img src="https://img.shields.io/badge/OS-Ubuntu%2022.04-E95420?style=flat&logo=ubuntu&logoColor=fff" alt="Ubuntu 22.04">
+<div align="center">
+
+[![Paper](https://img.shields.io/badge/📄%20Paper-PDF-EA1B22?style=for-the-badge&logo=adobeacrobatreader&logoColor=fff)](https://x2robot.cn-wlcb.ufileos.com/wall_oss.pdf)
+&nbsp;&nbsp;
+[![Hugging Face](https://img.shields.io/badge/Hugging%20Face-x--square--robot-FFB000?style=for-the-badge&logo=huggingface&logoColor=000)](https://huggingface.co/x-square-robot)
+&nbsp;&nbsp;
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=fff)](https://github.com/X-Square-Robot/wall-x)
+&nbsp;&nbsp;
+[![Project Page](https://img.shields.io/badge/Project-1E90FF?style=for-the-badge&logo=google-chrome&logoColor=fff)](https://x2robot.com/en/research/68bc2cde8497d7f238dde690)
 
 </div>
 
-## Building General-Purpose Robots Based on Embodied Foundation Model
-We are building the embodied foundation model to capture and compress the world's most valuable data: the continuous, high-fidelity stream of physical interaction.
+</div>
 
-By creating a direct feedback loop between the model's decisions and the body's lived experience, we enable the emergence of a truly generalizable intelligence—one that understands not just how the world works, but how to act effectively within it.
+## <a href="https://x2robot.cn-wlcb.ufileos.com/wall_oss.pdf" target="_blank"><strong>WALL-OSS: Igniting VLMs toward the Embodied Space</strong></a>
 
-## Repository
-This repository provides the training and inference code that supports our WALL series open-source embodied foundation models. It includes end-to-end pipelines for data preparation (LeRobot), model configuration, flow-matching and FAST action branches, and evaluation utilities for real and simulated robots.
+We introduce **WALL-OSS**, an end-to-end embodied foundation model that leverages large-scale multimodal pretraining to achieve (1) embodiment-aware vision--language understanding, (2) strong language--action association, and (3) robust manipulation capability.
+Our approach employs a tightly coupled architecture and multi-strategies training curriculum that enables Unified Cross-Level CoT—seamlessly unifying instruction reasoning, subgoal decomposition, and fine-grained action synthesis within a single differentiable framework.
+Our results show that WALL-OSS attains high success on complex long-horizon manipulations, demonstrates strong instruction-following capabilities, complex   understanding and reasoning, and outperforms strong baselines, thereby providing a reliable and scalable path from VLMs to embodied foundation models.
 
-## News
-- We introduce [**WALL-OSS: Igniting VLMs toward the Embodied Space**](https://x2robot.com/en/research/68bc2cde8497d7f238dde690), an end-to-end embodied foundation model that leverages large-scale multimodal pretraining to achieve (1) embodiment-aware vision–language understanding, (2) strong language–action association, and (3) robust manipulation capability.
+## 🎬 Video Demos
 
-## Models
-- WALL-OSS-FLOW: https://huggingface.co/x-square-robot/wall-oss-flow
-- WALL-OSS-FAST: https://huggingface.co/x-square-robot/wall-oss-fast
+<div align="center">
+    <video width="80%" controls>
+        <source src="https://x2robot.com/api/videos/file/wall-oss_top_720p-1.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+    <p><strong>WALL-OSS in Action: Demonstrating advanced manipulation capabilities and embodied AI performance</strong></p>
+</div>
 
-## Environment Setup
 
-Create and activate conda environment:
+
+## 🚀 Quick Start
+
+### Installation
+
 ```bash
+# Create conda environment
 conda create --name wallx python=3.10
 conda activate wallx
-```
 
-Install requirements:
-```bash
-pip install -r requirements.txt
-MAX_JOBS=4 pip install flash-attn==2.7.4.post1 --no-build-isolation
-```
+# Install base requirements
+pip install torch torchvision transformers
+pip install huggingface_hub
 
-Install lerobot:
-```bash
-git clone https://github.com/huggingface/lerobot.git
-git checkout c66cd401767e60baece16e1cf68da2824227e076
-cd lerobot
+# Install Wall-X from GitHub
+git clone https://github.com/X-Square-Robot/wall-x.git
+cd wall-x
 pip install -e .
 ```
 
-Install wall_x:
-```bash
-git submodule update --init --recursive
-MAX_JOBS=4 pip install --no-build-isolation --verbose .
+### Basic Usage
+
+```python
+import torch
+from wall_x.model.qwen2_5_based.modeling_qwen2_5_vl_act import Qwen2_5_VLMoEForAction
+
+# Load the model
+model_path = "X-Square-Robot/wall-oss-flow"  # or your local path
+model = Qwen2_5_VLMoEForAction.from_pretrained(model_path)
+model.eval()
+
+# Configuration
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = model.to(device).bfloat16()
+
+# Your inference code here...
 ```
 
-## Training
+## 🎯 Supervised Fine-Tuning (SFT)
 
-### Finetune on LeRobot Datasets
+For training Wall-X on your robotics datasets, please refer to our comprehensive training guide:
 
-Before training, please refer to `workspace/README.md` for detailed configuration instructions including:
+**📖 [Training Documentation](https://github.com/X-Square-Robot/wall-x/blob/main/workspace/README.md)**
 
-Training script path configuration
+The training process includes:
+- **Dataset Preparation**: How to prepare your robotics datasets in LeRobot format
+- **Configuration Setup**: Detailed configuration for GPU setup, model paths, and robot DOF settings
+- **Training Scripts**: Ready-to-use training scripts with proper hyperparameters
 
-- GPU setup
-- Model and data paths
-- Robot DOF configuration
-- Training hyperparameters
+### Quick Training Start
 
-Download the Flow/FAST pretrained model and run:
 ```bash
+# Run training (see workspace/README.md for detailed configuration)
 bash ./workspace/lerobot_example/run.sh
 ```
 
-## Inference
+## 🔮 Inference
 
-### Basic Action Inference
+For detailed inference examples and model evaluation:
 
-For model inference, please refer to:
+**📖 [Inference Documentation](https://github.com/X-Square-Robot/wall-x/blob/main/scripts/)**
 
-```bash
-python ./scripts/fake_inference.py
+### Basic Inference Example
+
+```python
+import torch
+from wall_x.model.qwen2_5_based.modeling_qwen2_5_vl_act import Qwen2_5_VLMoEForAction
+
+# Load model
+model_path = "X-Square-Robot/wall-x"
+model = Qwen2_5_VLMoEForAction.from_pretrained(model_path)
+model.eval()
+
+# Setup
+batch_size = 1
+seq_length = 50
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = model.to(device).bfloat16()
+
+# Prepare inputs (example with synthetic data)
+torch.manual_seed(0)
+input_ids = torch.randint(0, len(model.processor.tokenizer), (batch_size, seq_length), dtype=torch.long)
+attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
+moe_token_types = torch.zeros((batch_size, seq_length), dtype=torch.long)
+position_ids = torch.arange(seq_length, dtype=torch.long).unsqueeze(0).expand(batch_size, -1)
+
+# Robotics-specific inputs
+proprioception = torch.randn((batch_size, 1, 20), dtype=torch.float32)  # Joint states
+agent_pos_mask = torch.ones((batch_size, 1, 20), dtype=torch.float32)
+dof_mask = torch.ones((batch_size, 32, 20), dtype=torch.float32)  # DOF mask
+dataset_names = ["x2_normal"]
+
+# Move to device
+inputs = {
+    "input_ids": input_ids.to(device),
+    "attention_mask": attention_mask.to(device),
+    "moe_token_types": moe_token_types.to(device),
+    "position_ids": position_ids.to(device),
+    "proprioception": proprioception.to(device).bfloat16(),
+    "agent_pos_mask": agent_pos_mask.to(device).bfloat16(),
+    "dof_mask": dof_mask.to(device).bfloat16(),
+    "dataset_names": dataset_names,
+    "mode": "validate"
+}
+
+# Run inference
+with torch.no_grad():
+    outputs = model(**inputs)
+    print(f"Output logits shape: {outputs.logits.shape}")
 ```
 
-This script demonstrates how to:
-- Load the Wall-OSS model using `Qwen2_5_VLMoEForAction.from_pretrained()`
-- Prepare input data including proprioceptive information, attention masks, and dataset specifications
-- Run inference in validation mode with proper data types (bfloat16)
-- Validate model outputs and check for numerical stability
+### Advanced Inference Scripts
 
-### Open-Loop Evaluation
-
-To generate an open-loop comparison plot, please follow:
+For production-ready inference and evaluation scripts:
 
 ```bash
+# Basic inference test
+python ./scripts/fake_inference.py
+
+# Generate open-loop comparison plots
 python ./scripts/draw_openloop_plot.py
 ```
 
-### VQA Inference and Chain-of-Thought Testing
+**📁 [View all inference scripts](https://github.com/X-Square-Robot/wall-x/tree/main/scripts)**
 
-To run VQA inference and test the model's Chain-of-Thought (COT) reasoning capabilities, please follow:
+## 📚 Complete Documentation
 
-```bash
-python ./scripts/vqa_inference.py
-```
+For comprehensive setup, training, and inference instructions:
 
-This script can be used to test the model's COT reasoning abilities for embodied tasks. Below is an example of COT testing:
+### 🚀 **[Visit our GitHub Repository](https://github.com/X-Square-Robot/wall-x)**
 
-**Input Image:**
+The repository contains:
+- **Detailed Installation Guide**: Complete environment setup with all dependencies
+- **Training Tutorials**: Step-by-step SFT process with LeRobot datasets
+- **Inference Examples**: Multiple inference scripts and evaluation tools
+- **Configuration Templates**: Ready-to-use configs for different robot setups
+- **Troubleshooting Guide**: Common issues and solutions
 
-![COT Example Frame](assets/cot_example_frame.png)
-
-**Input Text:**
-```
-To move the red block in the plate with same color, what should you do next? Think step by step.
-```
-
-**Model Output (COT Reasoning):**
-```
-To move the red block in the plate with the same color, you should first locate the red block. It is currently positioned on the table, not in the plate. Then, you should carefully grasp the red block using your fingers. Next, you should use your hand to lift the red block from the table and place it into the plate that is also red in color. Ensure that the red block is securely placed in the plate without slipping or falling.
-```
-
-## 📚 Cite Us
+## 📄 Cite Us
 
 If you find WALL-OSS models useful, please cite:
 
 ```bibtex
-@article{zhai2025igniting,
-  title   = {Igniting VLMs Toward the Embodied Space},
-  author  = {Zhai, Andy and Liu, Brae and Fang, Bruno and Cai, Chalse and Ma, Ellie and Yin, Ethan and Wang, Hao and Zhou, Hugo and Wang, James and Shi, Lights and Liang, Lucy and Wang, Make and Wang, Qian and Gan, Roy and Yu, Ryan and Li, Shalfun and Liu, Starrick and Chen, Sylas and Chen, Vincent and Xu, Zach},
-  journal = {arXiv preprint arXiv:2509.11766},
-  year    = {2025}
+@misc{walloss_paper_2025,
+  title        = {WALL-OSS: Igniting VLMs toward the Embodied Space},
+  author       = {X Square Robot},
+  year         = {2025},
+  howpublished = {\url{https://x2robot.cn-wlcb.ufileos.com/wall_oss.pdf}},
+  note         = {White paper}
 }
 ```
