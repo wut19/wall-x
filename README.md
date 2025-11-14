@@ -160,22 +160,35 @@ python ./scripts/fake_inference.py
 python ./scripts/draw_openloop_plot.py
 ```
 
-**📁 [View all inference scripts](https://github.com/X-Square-Robot/wall-x/tree/main/scripts)**
+### VQA Inference and Chain-of-Thought Testing
 
-## 📚 Complete Documentation
+To run VQA inference and test the model's Chain-of-Thought (COT) reasoning capabilities, please follow:
 
-For comprehensive setup, training, and inference instructions:
+```bash
+python ./scripts/vqa_inference.py
+```
 
-### 🚀 **[Visit our GitHub Repository](https://github.com/X-Square-Robot/wall-x)**
+This script can be used to test the model's COT reasoning abilities for embodied tasks. Below is an example of COT testing:
 
-The repository contains:
-- **Detailed Installation Guide**: Complete environment setup with all dependencies
-- **Training Tutorials**: Step-by-step SFT process with LeRobot datasets
-- **Inference Examples**: Multiple inference scripts and evaluation tools
-- **Configuration Templates**: Ready-to-use configs for different robot setups
-- **Troubleshooting Guide**: Common issues and solutions
+**Input Image:**
 
-## 📄 Cite Us
+![COT Example Frame](assets/cot_example_frame.png)
+
+**Input Text:**
+```
+To move the red block in the plate with same color, what should you do next? Think step by step.
+```
+
+**Model Output (COT Reasoning):**
+```
+To move the red block in the plate with the same color, you should first locate the red block. It is currently positioned on the table, not in the plate. Then, you should carefully grasp the red block using your fingers. Next, you should use your hand to lift the red block from the table and place it into the plate that is also red in color. Ensure that the red block is securely placed in the plate without slipping or falling.
+```
+
+## Join Our Community
+- Scan the QR code on WeChat to join the discussion group, where you can engage in in-depth exchanges with community developers and the official team.
+<img src="assets/QRcode_community.jpg" alt="QR Code" width="400">
+
+## 📚 Cite Us
 
 If you find WALL-OSS models useful, please cite:
 
